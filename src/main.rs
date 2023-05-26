@@ -1,6 +1,8 @@
+use std::collections::HashSet;
+
 use futures_util::SinkExt;
 use humanophone::{ConsumerMessage, PublisherMessage};
-use klib::core::chord::Chord;
+use klib::core::{chord::Chord, note::Note};
 use tokio::{
     net::{TcpListener, TcpStream},
     sync::broadcast,
@@ -21,6 +23,7 @@ async fn main() -> anyhow::Result<()> {
 
         let chords_tx = chords_tx.clone();
         tokio::spawn(async move {
+            // Receive identification message from client
             let Some(Ok(id)) = ws_stream.next().await else {
                 anyhow::bail!("Failed to ID");
             };
@@ -35,25 +38,21 @@ async fn main() -> anyhow::Result<()> {
                     handle_consumer(chords_rx, ws_stream).await?;
                 }
             }
-
-            println!("{id:?}");
-
             Ok::<_, anyhow::Error>(())
         });
     }
-
     Ok(())
 }
 
 async fn handle_publisher(
-    chords_sender: broadcast::Sender<Chord>,
+    chords_sender: broadcast::Sender<(HashSet<Note>, Option<Chord>)>,
     mut stream: WebsocketStream<TcpStream>,
 ) -> anyhow::Result<()> {
     while let Some(Ok(msg)) = stream.next().await {
         if let Ok(text) = msg.as_text() {
-            if let Ok(PublisherMessage::PublishChord(chord)) = serde_json::from_str(text) {
-                if let Err(c) = chords_sender.send(chord) {
-                    warn!("Currently no subscribed consumers, dropping {}", c.0);
+            if let Ok(PublisherMessage::PublishChord(notes, chord)) = serde_json::from_str(text) {
+                if let Err(c) = chords_sender.send((notes, chord)) {
+                    warn!("Currently no subscribed consumers, dropping {:?}", c.0);
                 }
             }
         }
@@ -62,12 +61,12 @@ async fn handle_publisher(
 }
 
 async fn handle_consumer(
-    mut chords_receiver: broadcast::Receiver<Chord>,
+    mut chords_receiver: broadcast::Receiver<(HashSet<Note>, Option<Chord>)>,
     mut stream: WebsocketStream<TcpStream>,
 ) -> anyhow::Result<()> {
-    while let Ok(chord) = chords_receiver.recv().await {
+    while let Ok((notes, chord)) = chords_receiver.recv().await {
         stream
-            .send(ConsumerMessage::ChordEvent(chord).to_message())
+            .send(ConsumerMessage::ChordEvent(notes, chord).to_message())
             .await?;
     }
     Ok(())

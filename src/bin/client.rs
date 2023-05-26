@@ -14,7 +14,11 @@ async fn main() -> anyhow::Result<()> {
     client.send(announce.to_message()).await?;
 
     while let Some(Ok(msg)) = client.next().await {
-        println!("chord: {msg:?}");
+        if let Ok(text) = msg.as_text() {
+            if let Ok(ConsumerMessage::ChordEvent(notes, chord)) = serde_json::from_str(text) {
+                dbg!(notes);
+            }
+        }
     }
 
     client.close(None, None).await?;

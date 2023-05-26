@@ -19,3 +19,5 @@ kord = { git = "https://github.com/barafael/kord.git", features = ["serde"] }
 anyhow = "1.0.71"
 tracing = "0.1.37"
 tracing-subscriber = "0.3.17"
+midir = "0.9.1"
+midi-control = "0.2.2"

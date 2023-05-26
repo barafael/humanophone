@@ -1,11 +1,13 @@
-use klib::core::chord::Chord;
+use std::collections::HashSet;
+
+use klib::core::{chord::Chord, note::Note};
 use serde::{Deserialize, Serialize};
 use tokio_websockets::Message;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum PublisherMessage {
     IAmPublisher { id: String },
-    PublishChord(Chord),
+    PublishChord(HashSet<Note>, Option<Chord>),
 }
 
 impl PublisherMessage {
@@ -18,7 +20,7 @@ impl PublisherMessage {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum ConsumerMessage {
     IAmConsumer { id: String },
-    ChordEvent(Chord),
+    ChordEvent(HashSet<Note>, Option<Chord>),
 }
 
 impl ConsumerMessage {
