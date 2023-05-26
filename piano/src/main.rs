@@ -5,7 +5,7 @@ use std::{
 
 use futures_util::SinkExt;
 use http::Uri;
-use humanophone::PublisherMessage;
+use humanophone_server::PublisherMessage;
 use klib::core::{
     chord::Chord,
     note::{HasNoteId, Note},
@@ -33,17 +33,31 @@ async fn main() -> anyhow::Result<()> {
     client.send(announce.to_message()).await?;
 
     let mut notes = HashSet::new();
+    let mut counter = 0i32;
     while let Some((_stamp, message)) = midi_rx.recv().await {
-        if let MidiMessage::NoteOn(_channel, event) = message {
-            let note = Note::from_id(1u128 << event.key).unwrap();
-            notes.insert(note);
-        } else if let MidiMessage::NoteOff(_channel, event) = message {
-            let note = Note::from_id(1u128 << event.key).unwrap();
-            notes.remove(&note);
+        match message {
+            MidiMessage::NoteOn(_channel, event) => {
+                let note = Note::from_id(1u128 << event.key).unwrap();
+                notes.insert(note);
+                counter += 1;
+            }
+            MidiMessage::NoteOff(_channel, event) => {
+                let note = Note::from_id(1u128 << event.key).unwrap();
+                notes.remove(&note);
+                counter -= 1;
+            }
+            MidiMessage::Invalid => {
+                notes.clear();
+                counter = 0;
+            }
+            e => {
+                dbg!(e);
+            }
         }
         let chord = Chord::try_from_notes(notes.iter().cloned().collect::<Vec<_>>().as_slice())
             .ok()
             .and_then(|chords| chords.first().cloned());
+        println!("{counter}");
         let message = PublisherMessage::PublishChord(notes.clone(), chord).to_message();
         client.send(message).await?;
     }
@@ -98,6 +112,7 @@ fn run(midi_tx: mpsc::Sender<(u64, MidiMessage)>) -> anyhow::Result<()> {
             move |stamp, message, _| {
                 let message = MidiMessage::from(message);
                 midi_tx.blocking_send((stamp, message)).unwrap();
+                println!(".");
             },
             (),
         )

@@ -1,7 +1,7 @@
 use std::collections::HashSet;
 
 use futures_util::SinkExt;
-use humanophone::{ConsumerMessage, PublisherMessage};
+use humanophone_server::{ConsumerMessage, PublisherMessage};
 use klib::core::{chord::Chord, note::Note};
 use tokio::{
     net::{TcpListener, TcpStream},
