@@ -1049,6 +1049,7 @@ name = "pehnt"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "clap",
  "futures-util",
  "http",
  "kord",
@@ -1066,6 +1067,7 @@ name = "pekisch"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "clap",
  "futures-util",
  "http",
  "kord",
@@ -1175,6 +1177,7 @@ name = "quinnipak"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "clap",
  "futures-util",
  "http",
  "kord",

@@ -1,5 +1,6 @@
-use std::collections::HashSet;
+use std::{collections::HashSet, net::SocketAddr};
 
+use clap::Parser;
 use futures_util::SinkExt;
 use klib::core::{chord::Chord, note::Note};
 use morivar::{ConsumerMessage, PublisherMessage};
@@ -10,13 +11,25 @@ use tokio::{
 use tokio_websockets::{ServerBuilder, WebsocketStream};
 use tracing::{info, warn};
 
+#[derive(Debug, Parser)]
+#[command(author, version)]
+struct Arguments {
+    #[arg(short, long, default_value = "0.0.0.0:8000")]
+    address: SocketAddr,
+
+    #[arg(short, long, default_value_t = 64)]
+    chords_channel_size: usize,
+}
+
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     tracing_subscriber::fmt::init();
 
-    let (chords_tx, _) = broadcast::channel(64);
+    let args = Arguments::parse();
 
-    let listener = TcpListener::bind("0.0.0.0:8000").await?;
+    let (chords_tx, _) = broadcast::channel(args.chords_channel_size);
+
+    let listener = TcpListener::bind(args.address).await?;
 
     while let Ok((stream, _)) = listener.accept().await {
         let mut ws_stream = match ServerBuilder::new().accept(stream).await {

@@ -1,37 +1,67 @@
 use std::{
     collections::HashSet,
     io::{stdin, stdout, Write},
+    net::SocketAddr,
 };
 
 use anyhow::Context;
+use clap::{command, Parser};
 use futures_util::SinkExt;
 use http::Uri;
-use morivar::PublisherMessage;
 use klib::core::{
     chord::Chord,
     note::{HasNoteId, Note},
 };
 use midi_control::MidiMessage;
 use midir::{Ignore, MidiInput};
+use morivar::PublisherMessage;
 use tokio::sync::mpsc;
 use tokio::task::spawn_blocking;
 use tokio_websockets::ClientBuilder;
 use tracing::{info, warn};
 
+#[derive(Debug, Parser)]
+#[command(author, version)]
+struct Arguments {
+    #[arg(short, long, default_value = "0.0.0.0:8000")]
+    address: SocketAddr,
+
+    /// The id to report to Quinnipak
+    #[arg(short, long, default_value = "I am Pekisch")]
+    id: String,
+
+    /// The index of the midi device to use
+    #[arg(short, long)]
+    midi_device: Option<usize>,
+
+    /// MIDI channel capacity
+    #[arg(short, long, default_value_t = 256)]
+    midi_event_queue_length: usize,
+}
+
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     tracing_subscriber::fmt::init();
 
-    let (midi_tx, mut midi_rx) = mpsc::channel(256);
+    let args = Arguments::parse();
 
-    let t1 = spawn_blocking(|| harvest_midi_events(midi_tx));
+    let (midi_tx, mut midi_rx) = mpsc::channel(args.midi_event_queue_length);
 
-    let uri = Uri::from_static("wss://0.0.0.0:8000");
+    let uri = Uri::builder()
+        .scheme("wss")
+        .authority(args.address.to_string())
+        .path_and_query("/")
+        .build()?;
+
+    let midi_events = spawn_blocking(move || {
+        if let Err(e) = harvest_midi_events(midi_tx.clone(), args.midi_device) {
+            warn!("Failed to harvest MIDI: {e}");
+        }
+    });
+
     let mut client = ClientBuilder::from_uri(uri).connect().await?;
 
-    let announce = PublisherMessage::IAmPublisher {
-        id: "I am a piano".to_string(),
-    };
+    let announce = PublisherMessage::IAmPublisher { id: args.id };
     client.send(announce.to_message()).await?;
 
     let mut notes = HashSet::new();
@@ -64,19 +94,22 @@ async fn main() -> anyhow::Result<()> {
     info!("No more MIDI events, closing piano client");
     client.close(None, None).await?;
 
-    tokio::try_join!(t1)?.0?;
+    tokio::join!(midi_events).0?;
     Ok(())
 }
 
-fn harvest_midi_events(midi_tx: mpsc::Sender<(u64, MidiMessage)>) -> anyhow::Result<()> {
+fn harvest_midi_events(
+    midi_tx: mpsc::Sender<(u64, MidiMessage)>,
+    index: Option<usize>,
+) -> anyhow::Result<()> {
     let mut midi_in = MidiInput::new("midir reading input")?;
     midi_in.ignore(Ignore::None);
 
     // Get an input port (read from console if multiple are available)
     let in_ports = midi_in.ports();
-    let in_port = match in_ports.len() {
-        0 => anyhow::bail!("No input port found"),
-        1 => {
+    let in_port = match (in_ports.len(), index) {
+        (0, _) => anyhow::bail!("No input port found"),
+        (1, _) => {
             println!(
                 "Choosing the only available input port: {}",
                 midi_in
@@ -85,7 +118,7 @@ fn harvest_midi_events(midi_tx: mpsc::Sender<(u64, MidiMessage)>) -> anyhow::Res
             );
             &in_ports[0]
         }
-        _ => {
+        (_, None) => {
             println!("\nAvailable input ports:");
             for (i, p) in in_ports.iter().enumerate() {
                 println!(
@@ -103,6 +136,10 @@ fn harvest_midi_events(midi_tx: mpsc::Sender<(u64, MidiMessage)>) -> anyhow::Res
                 .get(input.trim().parse::<usize>()?)
                 .context("Invalid input port selected")?
         }
+        (n, Some(index)) if index < n => &in_ports[index],
+        (n, Some(index)) => {
+            anyhow::bail!("Invalid index {index}, there are only {n} devices");
+        }
     };
 
     println!("\nOpening connection");
@@ -116,7 +153,7 @@ fn harvest_midi_events(midi_tx: mpsc::Sender<(u64, MidiMessage)>) -> anyhow::Res
             move |stamp, message, _| {
                 let message = MidiMessage::from(message);
                 if let Err(e) = midi_tx.blocking_send((stamp, message)) {
-                    warn!("Failed to forward midi message {e}");
+                    warn!("Failed to forward midi message: {e}");
                 }
             },
             (),
