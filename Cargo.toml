@@ -1,7 +1,3 @@
 [workspace]
 
-members = [
-    "server",
-    "client",
-    "piano",
-] 
+members = ["server", "client", "piano"]

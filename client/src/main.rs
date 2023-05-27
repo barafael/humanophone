@@ -2,10 +2,13 @@ use futures_util::SinkExt;
 use http::Uri;
 use humanophone_server::ConsumerMessage;
 use tokio_websockets::ClientBuilder;
+use tracing::{info, warn};
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    let uri = Uri::from_static("ws://127.0.0.1:3000");
+    tracing_subscriber::fmt::init();
+
+    let uri = Uri::from_static("wss://0.0.0.0:8000");
     let mut client = ClientBuilder::from_uri(uri).connect().await?;
 
     let announce = ConsumerMessage::IAmConsumer {
@@ -18,17 +21,17 @@ async fn main() -> anyhow::Result<()> {
         if let Some(Ok(msg)) = next {
             if let Ok(text) = msg.as_text() {
                 if let Ok(ConsumerMessage::ChordEvent(notes, chord)) = serde_json::from_str(text) {
-                    dbg!(notes);
+                    info!("{notes:?}");
                     if let Some(chord) = chord {
-                        dbg!(chord);
+                        info!("{chord}");
                     }
                 }
             } else {
-                dbg!("Stopping receive");
+                warn!("Stopping receive");
                 break;
             }
         } else {
-            dbg!(next);
+            warn!("Breaking on client message: {next:?}");
             break;
         }
     }

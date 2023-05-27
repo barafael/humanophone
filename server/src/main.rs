@@ -8,32 +8,38 @@ use tokio::{
     sync::broadcast,
 };
 use tokio_websockets::{ServerBuilder, WebsocketStream};
-use tracing::warn;
+use tracing::{info, warn};
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     tracing_subscriber::fmt::init();
 
-    let listener = TcpListener::bind("127.0.0.1:3000").await?;
-
     let (chords_tx, _) = broadcast::channel(64);
 
+    let listener = TcpListener::bind("0.0.0.0:8000").await?;
+
     while let Ok((stream, _)) = listener.accept().await {
-        let mut ws_stream = ServerBuilder::new().accept(stream).await?;
+        let mut ws_stream = match ServerBuilder::new().accept(stream).await {
+            Ok(s) => s,
+            Err(e) => {
+                warn!("Failed to accept websocket client: {e}");
+                continue;
+            }
+        };
 
         let chords_tx = chords_tx.clone();
         tokio::spawn(async move {
             // Receive identification message from client
-            let Some(Ok(id)) = ws_stream.next().await else {
+            let Some(Ok(identification)) = ws_stream.next().await else {
                 anyhow::bail!("Failed to ID");
             };
 
-            if let Ok(text) = id.as_text() {
+            if let Ok(text) = identification.as_text() {
                 if let Ok(PublisherMessage::IAmPublisher { id }) = serde_json::from_str(text) {
-                    println!("Identified \"{id}\" as publisher");
+                    info!("Identified \"{id}\" as publisher");
                     handle_publisher(chords_tx, ws_stream).await?;
                 } else if let Ok(ConsumerMessage::IAmConsumer { id }) = serde_json::from_str(text) {
-                    println!("Identified \"{id}\" as consumer");
+                    info!("Identified \"{id}\" as consumer");
                     let chords_rx = chords_tx.subscribe();
                     handle_consumer(chords_rx, ws_stream).await?;
                 }
