@@ -6,7 +6,7 @@ use std::{
 use anyhow::Context;
 use futures_util::SinkExt;
 use http::Uri;
-use humanophone_server::PublisherMessage;
+use morivar::PublisherMessage;
 use klib::core::{
     chord::Chord,
     note::{HasNoteId, Note},

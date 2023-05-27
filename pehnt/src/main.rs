@@ -1,6 +1,6 @@
 use futures_util::SinkExt;
 use http::Uri;
-use humanophone_server::ConsumerMessage;
+use morivar::ConsumerMessage;
 use tokio_websockets::ClientBuilder;
 use tracing::{info, warn};
 

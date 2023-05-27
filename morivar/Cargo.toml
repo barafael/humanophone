@@ -1,0 +1,10 @@
+[package]
+name = "morivar"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+kord = { git = "https://github.com/barafael/kord.git", features = ["serde"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tokio-websockets = "0.3.2"

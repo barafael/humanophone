@@ -1,5 +1,5 @@
 [package]
-name = "humanophone-piano"
+name = "pekisch"
 version = "0.1.0"
 edition = "2021"
 
@@ -7,10 +7,10 @@ edition = "2021"
 anyhow = "1.0.71"
 futures-util = "0.3.28"
 http = "0.2.9"
-humanophone-server = { path = "../server" }
 kord = { git = "https://github.com/barafael/kord.git", features = ["serde"] }
 midi-control = "0.2.2"
 midir = "0.9.1"
+morivar = { path = "../morivar" }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 tokio = { version = "1.28.1", features = ["full"] }
