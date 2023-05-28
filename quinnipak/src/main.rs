@@ -46,7 +46,7 @@ fn load_keys(path: impl AsRef<Path>) -> anyhow::Result<Vec<PrivateKey>> {
 #[derive(Debug, Parser)]
 #[command(author, version)]
 struct Arguments {
-    #[arg(short, long, default_value = "0.0.0.0:8000")]
+    #[arg(short, long, default_value = "127.0.0.1:8000")]
     address: SocketAddr,
 
     #[command(subcommand)]
@@ -116,7 +116,7 @@ async fn main() -> anyhow::Result<()> {
                     handle_client(ws, chords_tx).await?;
                 }
             }
-            Ok(()) as anyhow::Result<_>
+            anyhow::Ok(())
         });
     }
     Ok(())

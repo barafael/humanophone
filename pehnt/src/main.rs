@@ -4,13 +4,14 @@ use clap::{command, Parser};
 use futures_util::SinkExt;
 use http::Uri;
 use morivar::ConsumerMessage;
+use native_tls::Certificate;
 use tokio_websockets::ClientBuilder;
 use tracing::{info, warn};
 
 #[derive(Debug, Parser)]
 #[command(author, version)]
 struct Arguments {
-    #[arg(short, long, default_value = "0.0.0.0:8000")]
+    #[arg(short, long, default_value = "127.0.0.1:8000")]
     address: SocketAddr,
 
     /// The id to report to Quinnipak
@@ -29,8 +30,17 @@ async fn main() -> anyhow::Result<()> {
         .authority(args.address.to_string())
         .path_and_query("/")
         .build()?;
+    let bytes = std::fs::read("../quinnipak/certs/localhost.crt")?;
+    let cert = Certificate::from_pem(&bytes)?;
+    let connector = native_tls::TlsConnector::builder()
+        .add_root_certificate(cert)
+        .build()?;
+    let connector = tokio_websockets::Connector::NativeTls(connector.into());
 
-    let mut client = ClientBuilder::from_uri(uri).connect().await?;
+    let mut client = ClientBuilder::from_uri(uri)
+        .connector(&connector)
+        .connect()
+        .await?;
 
     let announce = ConsumerMessage::IAmConsumer { id: args.id };
     client.send(announce.to_message()).await?;
