@@ -32,14 +32,14 @@ const DEFAULT_PATH_TO_KEY: &str = "certs/localhost.key";
 fn load_certs(path: impl AsRef<Path>) -> anyhow::Result<Vec<Certificate>> {
     certs(&mut BufReader::new(File::open(path)?))
         .map_err(|_| std::io::Error::new(std::io::ErrorKind::InvalidInput, "invalid cert"))
-        .map(|mut certs| certs.drain(..).map(Certificate).collect())
+        .map(|certs| certs.into_iter().map(Certificate).collect())
         .context("Failed to load local certificates")
 }
 
 fn load_keys(path: impl AsRef<Path>) -> anyhow::Result<Vec<PrivateKey>> {
     pkcs8_private_keys(&mut BufReader::new(File::open(path)?))
         .map_err(|_| std::io::Error::new(std::io::ErrorKind::InvalidInput, "invalid key"))
-        .map(|mut keys| keys.drain(..).map(PrivateKey).collect())
+        .map(|keys| keys.into_iter().map(PrivateKey).collect())
         .context("Failed to load local keys")
 }
 
@@ -98,23 +98,20 @@ async fn main() -> anyhow::Result<()> {
         let acceptor = acceptor.clone();
 
         tokio::spawn(async move {
-            match acceptor {
-                Some(acceptor) => {
-                    let stream = acceptor.accept(stream).await?;
-                    let ws = ServerBuilder::new()
-                        .accept(stream)
-                        .await
-                        .context("Failed to accept websocket client")?;
+            if let Some(acceptor) = acceptor {
+                let stream = acceptor.accept(stream).await?;
+                let ws = ServerBuilder::new()
+                    .accept(stream)
+                    .await
+                    .context("Failed to accept websocket client")?;
 
-                    handle_client(ws, chords_tx).await?;
-                }
-                None => {
-                    let ws = ServerBuilder::new()
-                        .accept(stream)
-                        .await
-                        .context("Failed to accept websocket client")?;
-                    handle_client(ws, chords_tx).await?;
-                }
+                handle_client(ws, chords_tx).await?;
+            } else {
+                let ws = ServerBuilder::new()
+                    .accept(stream)
+                    .await
+                    .context("Failed to accept websocket client")?;
+                handle_client(ws, chords_tx).await?;
             }
             anyhow::Ok(())
         });
