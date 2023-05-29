@@ -15,6 +15,7 @@ kord = { git = "https://github.com/barafael/kord.git", features = [
 ] }
 morivar = { path = "../morivar" }
 native-tls = "0.2.11"
+once_cell = "1.17.2"
 rodio = "0.17.1"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
