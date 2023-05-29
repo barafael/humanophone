@@ -1,3 +1,5 @@
+#![doc = include_str!("../README.md")]
+
 use std::{collections::HashSet, net::SocketAddr, sync::Arc};
 
 use anyhow::Context;

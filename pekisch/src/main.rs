@@ -1,3 +1,5 @@
+#![doc = include_str!("../README.md")]
+
 use std::{
     collections::HashSet,
     io::{stdin, stdout, Write},
