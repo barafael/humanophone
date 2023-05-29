@@ -8,11 +8,16 @@ use native_tls::Certificate;
 use tokio_websockets::ClientBuilder;
 use tracing::{info, warn};
 
+use jun::SecurityMode;
+
 #[derive(Debug, Parser)]
 #[command(author, version)]
 struct Arguments {
-    #[arg(short, long, default_value = "127.0.0.1:8000")]
+    #[arg(short, long, default_value = "0.0.0.0:8000")]
     address: SocketAddr,
+
+    #[command(subcommand)]
+    mode: Option<SecurityMode>,
 
     /// The id to report to Quinnipak
     #[arg(short, long, default_value = "I am Pehnt")]
@@ -25,22 +30,32 @@ async fn main() -> anyhow::Result<()> {
 
     let args = Arguments::parse();
 
+    let scheme = if matches!(args.mode, Some(SecurityMode::Secure { .. })) {
+        "wss"
+    } else {
+        "ws"
+    };
     let uri = Uri::builder()
-        .scheme("wss")
+        .scheme(scheme)
         .authority(args.address.to_string())
         .path_and_query("/")
         .build()?;
-    let bytes = std::fs::read("../quinnipak/certs/localhost.crt")?;
-    let cert = Certificate::from_pem(&bytes)?;
-    let connector = native_tls::TlsConnector::builder()
-        .add_root_certificate(cert)
-        .build()?;
-    let connector = tokio_websockets::Connector::NativeTls(connector.into());
 
-    let mut client = ClientBuilder::from_uri(uri)
-        .connector(&connector)
-        .connect()
-        .await?;
+    let mut client = if let Some(SecurityMode::Secure { cert, .. }) = args.mode {
+        let bytes = std::fs::read(cert)?;
+        let cert = Certificate::from_pem(&bytes)?;
+        let connector = native_tls::TlsConnector::builder()
+            .add_root_certificate(cert)
+            .build()?;
+        let connector = tokio_websockets::Connector::NativeTls(connector.into());
+
+        ClientBuilder::from_uri(uri)
+            .connector(&connector)
+            .connect()
+            .await?
+    } else {
+        ClientBuilder::from_uri(uri).connect().await?
+    };
 
     let announce = ConsumerMessage::IAmConsumer { id: args.id };
     client.send(announce.to_message()).await?;

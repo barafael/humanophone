@@ -17,8 +17,11 @@ use midir::{Ignore, MidiInput};
 use morivar::PublisherMessage;
 use tokio::sync::mpsc;
 use tokio::task::spawn_blocking;
+use tokio_native_tls::native_tls::{self, Certificate};
 use tokio_websockets::ClientBuilder;
 use tracing::{info, warn};
+
+use jun::SecurityMode;
 
 #[derive(Debug, Parser)]
 #[command(author, version)]
@@ -37,6 +40,9 @@ struct Arguments {
     /// MIDI channel capacity
     #[arg(short, long, default_value_t = 256)]
     midi_event_queue_length: usize,
+
+    #[command(subcommand)]
+    mode: Option<SecurityMode>,
 }
 
 #[tokio::main]
@@ -47,19 +53,38 @@ async fn main() -> anyhow::Result<()> {
 
     let (midi_tx, mut midi_rx) = mpsc::channel(args.midi_event_queue_length);
 
-    let uri = Uri::builder()
-        .scheme("wss")
-        .authority(args.address.to_string())
-        .path_and_query("/")
-        .build()?;
-
     let midi_events = spawn_blocking(move || {
         if let Err(e) = harvest_midi_events(midi_tx.clone(), args.midi_device) {
             warn!("Failed to harvest MIDI: {e}");
         }
     });
 
-    let mut client = ClientBuilder::from_uri(uri).connect().await?;
+    let scheme = if matches!(args.mode, Some(SecurityMode::Secure { .. })) {
+        "wss"
+    } else {
+        "ws"
+    };
+    let uri = Uri::builder()
+        .scheme(scheme)
+        .authority(args.address.to_string())
+        .path_and_query("/")
+        .build()?;
+
+    let mut client = if let Some(SecurityMode::Secure { cert, .. }) = args.mode {
+        let bytes = std::fs::read(cert)?;
+        let cert = Certificate::from_pem(&bytes)?;
+        let connector = native_tls::TlsConnector::builder()
+            .add_root_certificate(cert)
+            .build()?;
+        let connector = tokio_websockets::Connector::NativeTls(connector.into());
+
+        ClientBuilder::from_uri(uri)
+            .connector(&connector)
+            .connect()
+            .await?
+    } else {
+        ClientBuilder::from_uri(uri).connect().await?
+    };
 
     let announce = PublisherMessage::IAmPublisher { id: args.id };
     client.send(announce.to_message()).await?;

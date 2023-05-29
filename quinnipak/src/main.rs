@@ -1,15 +1,9 @@
-use std::{
-    collections::HashSet,
-    fs::File,
-    io::BufReader,
-    net::SocketAddr,
-    path::{Path, PathBuf},
-    sync::Arc,
-};
+use std::{collections::HashSet, net::SocketAddr, sync::Arc};
 
 use anyhow::Context;
-use clap::{Parser, Subcommand};
+use clap::Parser;
 use futures_util::SinkExt;
+use jun::{load_certs, load_keys, SecurityMode};
 use klib::core::{chord::Chord, note::Note};
 use morivar::{ConsumerMessage, PublisherMessage};
 use tokio::{
@@ -17,36 +11,14 @@ use tokio::{
     net::TcpListener,
     sync::broadcast,
 };
+use tokio_rustls::TlsAcceptor;
 use tokio_websockets::{ServerBuilder, WebsocketStream};
 use tracing::{info, warn};
-
-use rustls_pemfile::{certs, pkcs8_private_keys};
-use tokio_rustls::{
-    rustls::{self, Certificate, PrivateKey},
-    TlsAcceptor,
-};
-
-const DEFAULT_PATH_TO_CERT: &str = "certs/localhost.crt";
-const DEFAULT_PATH_TO_KEY: &str = "certs/localhost.key";
-
-fn load_certs(path: impl AsRef<Path>) -> anyhow::Result<Vec<Certificate>> {
-    certs(&mut BufReader::new(File::open(path)?))
-        .map_err(|_| std::io::Error::new(std::io::ErrorKind::InvalidInput, "invalid cert"))
-        .map(|certs| certs.into_iter().map(Certificate).collect())
-        .context("Failed to load local certificates")
-}
-
-fn load_keys(path: impl AsRef<Path>) -> anyhow::Result<Vec<PrivateKey>> {
-    pkcs8_private_keys(&mut BufReader::new(File::open(path)?))
-        .map_err(|_| std::io::Error::new(std::io::ErrorKind::InvalidInput, "invalid key"))
-        .map(|keys| keys.into_iter().map(PrivateKey).collect())
-        .context("Failed to load local keys")
-}
 
 #[derive(Debug, Parser)]
 #[command(author, version)]
 struct Arguments {
-    #[arg(short, long, default_value = "127.0.0.1:8000")]
+    #[arg(short, long, default_value = "0.0.0.0:8000")]
     address: SocketAddr,
 
     #[command(subcommand)]
@@ -54,19 +26,6 @@ struct Arguments {
 
     #[arg(long, default_value_t = 64)]
     chords_channel_size: usize,
-}
-
-#[derive(Debug, Subcommand)]
-#[group(required = true, multiple = true)]
-enum SecurityMode {
-    /// Use a certificate and key file for SSL-encrypted communication
-    Secure {
-        #[arg(short, long, default_value = DEFAULT_PATH_TO_CERT)]
-        cert: PathBuf,
-
-        #[arg(short, long, default_value = DEFAULT_PATH_TO_KEY)]
-        key: PathBuf,
-    },
 }
 
 #[tokio::main]
@@ -100,6 +59,7 @@ async fn main() -> anyhow::Result<()> {
         tokio::spawn(async move {
             if let Some(acceptor) = acceptor {
                 let stream = acceptor.accept(stream).await?;
+                // The type of `ws` is `WebsocketStream<TlsStream<TcpStream>>`
                 let ws = ServerBuilder::new()
                     .accept(stream)
                     .await
@@ -107,6 +67,7 @@ async fn main() -> anyhow::Result<()> {
 
                 handle_client(ws, chords_tx).await?;
             } else {
+                // The type of `ws` is `WebsocketStream<TcpStream>`
                 let ws = ServerBuilder::new()
                     .accept(stream)
                     .await

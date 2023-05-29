@@ -1,3 +1,3 @@
 [workspace]
 
-members = ["quinnipak", "pehnt", "pekisch", "morivar"]
+members = ["quinnipak", "pehnt", "pekisch", "morivar", "jun"]
