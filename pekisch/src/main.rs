@@ -36,11 +36,11 @@ struct Arguments {
     id: String,
 
     /// The index of the midi device to use
-    #[arg(short, long)]
-    midi_device: Option<usize>,
+    #[arg(long)]
+    device: Option<usize>,
 
     /// MIDI channel capacity
-    #[arg(short, long, default_value_t = 256)]
+    #[arg(long, default_value_t = 256)]
     midi_event_queue_length: usize,
 
     #[command(subcommand)]
@@ -56,9 +56,7 @@ async fn main() -> anyhow::Result<()> {
     let (midi_tx, mut midi_rx) = mpsc::channel(args.midi_event_queue_length);
 
     let midi_events = spawn_blocking(move || {
-        if let Err(e) = harvest_midi_events(midi_tx.clone(), args.midi_device) {
-            warn!("Failed to harvest MIDI: {e}");
-        }
+        harvest_midi_events(midi_tx.clone(), args.device).context("Failed to harvest MIDI")
     });
 
     let scheme = if matches!(args.mode, Some(SecurityMode::Secure { .. })) {
@@ -121,8 +119,7 @@ async fn main() -> anyhow::Result<()> {
     info!("No more MIDI events, closing piano client");
     client.close(None, None).await?;
 
-    tokio::join!(midi_events).0?;
-    Ok(())
+    tokio::join!(midi_events).0?
 }
 
 fn harvest_midi_events(
@@ -189,7 +186,8 @@ fn harvest_midi_events(
         .map_err(|e| anyhow::format_err!("{e}"))
         .context("Failed to connect to midi input")?;
 
-    println!("Connection open, reading input from '{in_port_name}' (press enter to exit) ...");
+    println!("Connection open, reading input from '{in_port_name}'");
+    println!("(press enter to exit) ...");
 
     stdin().read_line(&mut String::new())?; // wait for next enter key press
 

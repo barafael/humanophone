@@ -5,7 +5,7 @@ import ssl
 from websockets.client import connect
 
 ssl_context = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
-localhost_pem = pathlib.Path("certs/localhost.crt")
+localhost_pem = pathlib.Path("../jun/certs/localhost.crt")
 ssl_context.load_verify_locations(localhost_pem)
 
 
