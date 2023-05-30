@@ -9,7 +9,7 @@ clap = { version = "4.3.0", features = ["derive"] }
 futures-util = "0.3.28"
 http = "0.2.9"
 jun = { path = "../jun" }
-kord = { git = "https://github.com/barafael/kord.git", features = ["serde"] }
+kord = { git = "https://github.com/barafael/kord.git" }
 morivar = { path = "../morivar" }
 native-tls = "0.2.11"
 serde = { version = "1", features = ["derive"] }

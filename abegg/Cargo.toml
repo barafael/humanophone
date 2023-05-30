@@ -10,7 +10,6 @@ futures-util = "0.3.28"
 http = "0.2.9"
 jun = { path = "../jun" }
 kord = { git = "https://github.com/barafael/kord.git", features = [
-    "serde",
     "audio",
 ] }
 morivar = { path = "../morivar" }
