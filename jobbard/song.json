@@ -1,0 +1,53 @@
+[
+  {
+    "root": {
+      "octave": "Four",
+      "named_pitch": "G"
+    },
+    "slash": null,
+    "modifiers": [
+      "Minor",
+      {
+        "Dominant": "Seven"
+      }
+    ],
+    "extensions": [
+      "Add9",
+      "Add11"
+    ],
+    "inversion": 0,
+    "is_crunchy": false
+  },
+  {
+    "root": {
+      "octave": "Four",
+      "named_pitch": "C"
+    },
+    "slash": null,
+    "modifiers": [
+      {
+        "Dominant": "Seven"
+      },
+      {
+        "Dominant": "Nine"
+      }
+    ],
+    "extensions": [],
+    "inversion": 0,
+    "is_crunchy": false
+  },
+  {
+    "root": {
+      "octave": "Four",
+      "named_pitch": "F"
+    },
+    "slash": null,
+    "modifiers": [],
+    "extensions": [
+      "Add6",
+      "Add9"
+    ],
+    "inversion": 0,
+    "is_crunchy": false
+  }
+]
