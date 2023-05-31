@@ -9,7 +9,7 @@ clap = { version = "4.3.0", features = ["derive"] }
 futures-util = "0.3.28"
 http = "0.2.9"
 jun = { path = "../jun" }
-kord = { git = "https://github.com/barafael/kord.git" }
+kord = { git = "https://github.com/twitchax/kord.git" }
 midi-control = "0.2.2"
 midir = "0.9.1"
 morivar = { path = "../morivar" }

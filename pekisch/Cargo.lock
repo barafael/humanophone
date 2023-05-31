@@ -712,7 +712,7 @@ dependencies = [
 [[package]]
 name = "kord"
 version = "0.5.20"
-source = "git+https://github.com/barafael/kord.git#2bdee01c989ff058cb57438a1e630b667bf24ef9"
+source = "git+https://github.com/twitchax/kord.git#2bdee01c989ff058cb57438a1e630b667bf24ef9"
 dependencies = [
  "anyhow",
  "async-trait",
