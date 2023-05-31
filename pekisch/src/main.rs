@@ -109,10 +109,15 @@ async fn main() -> anyhow::Result<()> {
                 warn!("Unhandled MIDI message: {e:?}");
             }
         }
-        let chord = Chord::try_from_notes(notes.iter().copied().collect::<Vec<_>>().as_slice())
-            .ok()
-            .and_then(|chords| chords.first().cloned());
-        let message = PublisherMessage::PublishChord(notes.clone(), chord).to_message();
+        let message = if let Some(chord) =
+            Chord::try_from_notes(notes.iter().copied().collect::<Vec<_>>().as_slice())
+                .ok()
+                .and_then(|chords| chords.first().cloned())
+        {
+            PublisherMessage::PublishChord(chord).to_message()
+        } else {
+            PublisherMessage::PublishPitches(notes.clone()).to_message()
+        };
         client.send(message).await?;
     }
 

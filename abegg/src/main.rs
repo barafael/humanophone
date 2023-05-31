@@ -100,18 +100,23 @@ async fn main() -> anyhow::Result<()> {
         let next = client.next().await;
         if let Some(Ok(msg)) = next {
             if let Ok(text) = msg.as_text() {
-                if let Ok(ConsumerMessage::ChordEvent(notes, chord)) = serde_json::from_str(text) {
-                    if let Some(chord) = chord {
+                match serde_json::from_str(text) {
+                    Ok(ConsumerMessage::ChordEvent(chord)) => {
                         let ph = chord.play(0.0, 5.0, 0.5)?;
                         let _ = handle.insert(ph);
-                    } else {
-                        let ph = Pitches::from(notes).play(0.0, 5.0, 0.5)?;
+                    }
+                    Ok(ConsumerMessage::PitchesEvent(pitches)) => {
+                        let ph = Pitches::from(pitches).play(0.0, 5.0, 0.5)?;
                         let _ = handle.insert(ph);
                     }
+                    Ok(ConsumerMessage::Silence) => {
+                        handle = None;
+                    }
+                    e => {
+                        warn!("Unhandled event: {e:?}");
+                        break;
+                    }
                 }
-            } else {
-                warn!("Stopping receive");
-                break;
             }
         } else {
             warn!("Breaking on client message: {next:?}");

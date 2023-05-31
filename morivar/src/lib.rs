@@ -9,7 +9,9 @@ use tokio_websockets::Message;
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum PublisherMessage {
     IAmPublisher { id: String },
-    PublishChord(HashSet<Note>, Option<Chord>),
+    PublishChord(Chord),
+    PublishPitches(HashSet<Note>),
+    Silence,
 }
 
 impl PublisherMessage {
@@ -23,7 +25,9 @@ impl PublisherMessage {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum ConsumerMessage {
     IAmConsumer { id: String },
-    ChordEvent(HashSet<Note>, Option<Chord>),
+    ChordEvent(Chord),
+    PitchesEvent(HashSet<Note>),
+    Silence,
 }
 
 impl ConsumerMessage {
@@ -56,7 +60,7 @@ mod test {
 
     #[test]
     fn serializes_piano_chord() {
-        let notes = [
+        let chord = [
             Note::new(
                 klib::core::named_pitch::NamedPitch::A,
                 klib::core::octave::Octave::Eleven,
@@ -69,7 +73,7 @@ mod test {
         .into_iter()
         .collect();
         let chord = None;
-        let message = PublisherMessage::PublishChord(notes, chord);
+        let message = PublisherMessage::PublishChord(chord);
         dbg!(serde_json::to_string_pretty(&message).unwrap());
     }
 }

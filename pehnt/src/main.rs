@@ -66,10 +66,15 @@ async fn main() -> anyhow::Result<()> {
         let next = client.next().await;
         if let Some(Ok(msg)) = next {
             if let Ok(text) = msg.as_text() {
-                if let Ok(ConsumerMessage::ChordEvent(notes, chord)) = serde_json::from_str(text) {
-                    info!("{notes:?}");
-                    if let Some(chord) = chord {
-                        info!("{chord}");
+                match serde_json::from_str(text) {
+                    Ok(ConsumerMessage::ChordEvent(chord)) => {
+                        info!("Chord: {chord}");
+                    }
+                    Ok(ConsumerMessage::PitchesEvent(pitches)) => {
+                        info!("Pitches: {pitches:?}");
+                    }
+                    m => {
+                        warn!("Unhandled consumer message: {m:?}");
                     }
                 }
             } else {

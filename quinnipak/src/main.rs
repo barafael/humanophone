@@ -1,12 +1,11 @@
 #![doc = include_str!("../README.md")]
 
-use std::{collections::HashSet, net::SocketAddr, sync::Arc};
+use std::{net::SocketAddr, sync::Arc};
 
 use anyhow::Context;
 use clap::Parser;
 use futures_util::SinkExt;
 use jun::{load_certs, load_keys, SecurityMode};
-use klib::core::{chord::Chord, note::Note};
 use morivar::{ConsumerMessage, PublisherMessage};
 use tokio::{
     io::{AsyncRead, AsyncWrite},
@@ -84,7 +83,7 @@ async fn main() -> anyhow::Result<()> {
 
 async fn handle_client<S>(
     mut stream: WebsocketStream<S>,
-    chords_sender: broadcast::Sender<(HashSet<Note>, Option<Chord>)>,
+    chords_sender: broadcast::Sender<ConsumerMessage>,
 ) -> anyhow::Result<()>
 where
     S: AsyncRead + AsyncWrite + Unpin,
@@ -108,7 +107,7 @@ where
 }
 
 async fn handle_publisher<S>(
-    chords_sender: broadcast::Sender<(HashSet<Note>, Option<Chord>)>,
+    chords_sender: broadcast::Sender<ConsumerMessage>,
     mut stream: WebsocketStream<S>,
 ) -> anyhow::Result<()>
 where
@@ -116,9 +115,27 @@ where
 {
     while let Some(Ok(msg)) = stream.next().await {
         if let Ok(text) = msg.as_text() {
-            if let Ok(PublisherMessage::PublishChord(notes, chord)) = serde_json::from_str(text) {
-                if let Err(c) = chords_sender.send((notes, chord)) {
-                    warn!("Currently no subscribed consumers, dropping {:?}", c.0);
+            match serde_json::from_str(text) {
+                Ok(PublisherMessage::PublishChord(chord)) => {
+                    println!("{:?}", chord);
+                    if let Err(c) = chords_sender.send(ConsumerMessage::ChordEvent(chord)) {
+                        warn!("Currently no subscribed consumers, dropping {:?}", c.0);
+                    }
+                }
+                Ok(PublisherMessage::PublishPitches(pitches)) => {
+                    if let Err(c) = chords_sender.send(ConsumerMessage::PitchesEvent(pitches)) {
+                        warn!("Currently no subscribed consumers, dropping {:?}", c.0);
+                    }
+                }
+                Ok(PublisherMessage::Silence) => {
+                    if let Err(c) = chords_sender.send(ConsumerMessage::Silence) {
+                        warn!("Currently no subscribed consumers, dropping {:?}", c.0);
+                    }
+                }
+                e => {
+                    warn!("Unhandled publication: {e:?}");
+                    chords_sender.send(ConsumerMessage::Silence)?;
+                    break;
                 }
             }
         }
@@ -127,16 +144,14 @@ where
 }
 
 async fn handle_consumer<S>(
-    mut chords_receiver: broadcast::Receiver<(HashSet<Note>, Option<Chord>)>,
+    mut chords_receiver: broadcast::Receiver<ConsumerMessage>,
     mut stream: WebsocketStream<S>,
 ) -> anyhow::Result<()>
 where
     S: AsyncRead + AsyncWrite + Unpin,
 {
-    while let Ok((notes, chord)) = chords_receiver.recv().await {
-        stream
-            .send(ConsumerMessage::ChordEvent(notes, chord).to_message())
-            .await?;
+    while let Ok(event) = chords_receiver.recv().await {
+        stream.send(event.to_message()).await?;
     }
     Ok(())
 }
