@@ -12,6 +12,8 @@ Pekisch has an adoptive son, Pehnt, who helps him research why chords streamed i
 
 Jun is a woman of unheralded beauty. She receives secret letters from her husband, Mr. Rail, who frequently is away on business trips.
 
+Jobbard writes a letter.
+
 Morivar is a far-away city, which heralds a secret.
 
 Finally, Abegg is a good-hearted widow which holds Pehnt and Pekisch together.
