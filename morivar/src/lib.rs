@@ -43,6 +43,8 @@ impl ConsumerMessage {
 
 #[cfg(test)]
 mod test {
+    use klib::core::{chord::Chordable, note};
+
     use super::*;
 
     #[test]
@@ -58,25 +60,13 @@ mod test {
         let message = PublisherMessage::IAmPublisher {
             id: "Hello there".to_string(),
         };
-        dbg!(serde_json::to_string_pretty(&message).unwrap());
+        println!("{}", serde_json::to_string_pretty(&message).unwrap());
     }
 
     #[test]
     fn serializes_piano_chord() {
-        let chord = [
-            Note::new(
-                klib::core::named_pitch::NamedPitch::A,
-                klib::core::octave::Octave::Eleven,
-            ),
-            Note::new(
-                klib::core::named_pitch::NamedPitch::ASharp,
-                klib::core::octave::Octave::Five,
-            ),
-        ]
-        .into_iter()
-        .collect();
-        let chord = None;
+        let chord = Chord::new(note::AFlat).sus4().seven().add13();
         let message = PublisherMessage::PublishChord(chord);
-        dbg!(serde_json::to_string_pretty(&message).unwrap());
+        println!("{:?}", serde_json::to_string_pretty(&message).unwrap());
     }
 }
