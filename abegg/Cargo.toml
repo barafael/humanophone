@@ -8,7 +8,6 @@ anyhow = "1.0.71"
 clap = { version = "4.3.0", features = ["derive"] }
 futures-util = "0.3.28"
 http = "0.2.9"
-jun = { path = "../jun" }
 kord = { git = "https://github.com/twitchax/kord.git", features = ["audio"] }
 morivar = { path = "../morivar", features = ["message"] }
 native-tls = "0.2.11"

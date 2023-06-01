@@ -1,5 +1,3 @@
-#![doc = include_str!("../README.md")]
-
 use std::{
     fs::File,
     io::BufReader,
@@ -12,18 +10,15 @@ use clap::Subcommand;
 use rustls_pemfile::{certs, pkcs8_private_keys};
 use tokio_rustls::rustls::{Certificate, PrivateKey};
 
-const DEFAULT_PATH_TO_CERT: &str = "../jun/certs/localhost.crt";
-const DEFAULT_PATH_TO_KEY: &str = "../jun/certs/localhost.key";
-
 #[derive(Debug, Subcommand)]
 #[group(required = true, multiple = true)]
 pub enum SecurityMode {
     /// Use a certificate and key file for SSL-encrypted communication
     Secure {
-        #[arg(short, long, default_value = DEFAULT_PATH_TO_CERT)]
+        #[arg(short, long)]
         cert: PathBuf,
 
-        #[arg(short, long, default_value = DEFAULT_PATH_TO_KEY)]
+        #[arg(short, long)]
         key: PathBuf,
     },
 }

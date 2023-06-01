@@ -10,7 +10,6 @@ dependencies = [
  "clap",
  "futures-util",
  "http",
- "jun",
  "kord",
  "morivar",
  "native-tls",
@@ -744,7 +743,6 @@ dependencies = [
  "futures-util",
  "http",
  "humantime",
- "jun",
  "kord",
  "morivar",
  "serde",
@@ -772,16 +770,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2f37a4a5928311ac501dee68b3c7613a1037d0edb30c8e5427bd832d55d1b790"
 dependencies = [
  "wasm-bindgen",
-]
-
-[[package]]
-name = "jun"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "clap",
- "rustls-pemfile",
- "tokio-rustls",
 ]
 
 [[package]]
@@ -1122,9 +1110,9 @@ checksum = "9670a07f94779e00908f3e686eab508878ebb390ba6e604d3a284c00e8d0487b"
 
 [[package]]
 name = "openssl"
-version = "0.10.53"
+version = "0.10.54"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "12df40a956736488b7b44fe79fe12d4f245bb5b3f5a1f6095e499760015be392"
+checksum = "69b3f656a17a6cbc115b5c7a40c616947d213ba182135b014d6051b73ab6f019"
 dependencies = [
  "bitflags",
  "cfg-if",
@@ -1223,7 +1211,6 @@ dependencies = [
  "clap",
  "futures-util",
  "http",
- "jun",
  "kord",
  "morivar",
  "native-tls",
@@ -1244,7 +1231,6 @@ dependencies = [
  "clap",
  "futures-util",
  "http",
- "jun",
  "kord",
  "midi-control",
  "midir",
@@ -1356,7 +1342,6 @@ dependencies = [
  "clap",
  "futures-util",
  "http",
- "jun",
  "kord",
  "morivar",
  "rustls",

@@ -5,8 +5,8 @@ use std::{net::SocketAddr, sync::Arc};
 use anyhow::Context;
 use clap::Parser;
 use futures_util::SinkExt;
-use jun::{load_certs, load_keys, SecurityMode};
 use morivar::{ConsumerMessage, PublisherMessage};
+use secure::{load_certs, load_keys, SecurityMode};
 use tokio::{
     io::{AsyncRead, AsyncWrite},
     net::TcpListener,
@@ -15,6 +15,8 @@ use tokio::{
 use tokio_rustls::TlsAcceptor;
 use tokio_websockets::{ServerBuilder, WebsocketStream};
 use tracing::{info, warn};
+
+mod secure;
 
 #[derive(Debug, Parser)]
 #[command(author, version)]

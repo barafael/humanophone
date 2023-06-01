@@ -1,20 +1,17 @@
 #![doc = include_str!("../README.md")]
 
-use std::{net::SocketAddr, time::Duration};
+use std::time::Duration;
 
-use clap::{command, Parser};
+use clap::{command, Parser, ValueHint};
 use futures_util::SinkExt;
-use http::Uri;
+use http::{uri::Authority, Uri};
 use klib::core::{base::Playable, named_pitch::NamedPitch, note::Note, octave::Octave};
 use morivar::ConsumerMessage;
-use native_tls::Certificate;
 use once_cell::sync::Lazy;
 use pitches::Pitches;
 use tokio_websockets::ClientBuilder;
 use tone::Tone;
 use tracing::warn;
-
-use jun::SecurityMode;
 
 mod pitches;
 mod tone;
@@ -22,11 +19,11 @@ mod tone;
 #[derive(Debug, Parser)]
 #[command(author, version)]
 struct Arguments {
-    #[arg(short, long, default_value = "0.0.0.0:8000")]
-    address: SocketAddr,
+    #[arg(short, long, value_hint = ValueHint::Url, default_value = "0.0.0.0:8000")]
+    url: Authority,
 
-    #[command(subcommand)]
-    mode: Option<SecurityMode>,
+    #[arg(short, long, default_value_t = false)]
+    secure: bool,
 
     /// The id to report to Quinnipak
     #[arg(short, long, default_value = "I am Abegg")]
@@ -65,23 +62,14 @@ async fn main() -> anyhow::Result<()> {
         jingle(&*ABEGG)?;
     }
 
-    let scheme = if matches!(args.mode, Some(SecurityMode::Secure { .. })) {
-        "wss"
-    } else {
-        "ws"
-    };
     let uri = Uri::builder()
-        .scheme(scheme)
-        .authority(args.address.to_string())
+        .scheme(if args.secure { "wss" } else { "ws" })
+        .authority(args.url)
         .path_and_query("/")
         .build()?;
 
-    let mut client = if let Some(SecurityMode::Secure { cert, .. }) = args.mode {
-        let bytes = std::fs::read(cert)?;
-        let cert = Certificate::from_pem(&bytes)?;
-        let connector = native_tls::TlsConnector::builder()
-            .add_root_certificate(cert)
-            .build()?;
+    let mut client = if args.secure {
+        let connector = native_tls::TlsConnector::builder().build()?;
         let connector = tokio_websockets::Connector::NativeTls(connector.into());
 
         ClientBuilder::from_uri(uri)

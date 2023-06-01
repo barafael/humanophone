@@ -3,13 +3,12 @@
 use std::{
     collections::HashSet,
     io::{stdin, stdout, Write},
-    net::SocketAddr,
 };
 
 use anyhow::Context;
-use clap::{command, Parser};
+use clap::{command, Parser, ValueHint};
 use futures_util::SinkExt;
-use http::Uri;
+use http::{uri::Authority, Uri};
 use klib::core::{
     chord::Chord,
     note::{HasNoteId, Note},
@@ -19,17 +18,15 @@ use midir::{Ignore, MidiInput};
 use morivar::PublisherMessage;
 use tokio::sync::mpsc;
 use tokio::task::spawn_blocking;
-use tokio_native_tls::native_tls::{self, Certificate};
+use tokio_native_tls::native_tls;
 use tokio_websockets::ClientBuilder;
 use tracing::{info, warn};
-
-use jun::SecurityMode;
 
 #[derive(Debug, Parser)]
 #[command(author, version)]
 struct Arguments {
-    #[arg(short, long, default_value = "0.0.0.0:8000")]
-    address: SocketAddr,
+    #[arg(short, long, value_hint = ValueHint::Url, default_value = "0.0.0.0:8000")]
+    url: Authority,
 
     /// The id to report to Quinnipak
     #[arg(short, long, default_value = "I am Pekisch")]
@@ -43,8 +40,8 @@ struct Arguments {
     #[arg(long, default_value_t = 256)]
     midi_event_queue_length: usize,
 
-    #[command(subcommand)]
-    mode: Option<SecurityMode>,
+    #[arg(short, long, default_value_t = false)]
+    secure: bool,
 }
 
 #[tokio::main]
@@ -59,23 +56,14 @@ async fn main() -> anyhow::Result<()> {
         harvest_midi_events(midi_tx.clone(), args.device).context("Failed to harvest MIDI")
     });
 
-    let scheme = if matches!(args.mode, Some(SecurityMode::Secure { .. })) {
-        "wss"
-    } else {
-        "ws"
-    };
     let uri = Uri::builder()
-        .scheme(scheme)
-        .authority(args.address.to_string())
+        .scheme(if args.secure { "wss" } else { "ws" })
+        .authority(args.url)
         .path_and_query("/")
         .build()?;
 
-    let mut client = if let Some(SecurityMode::Secure { cert, .. }) = args.mode {
-        let bytes = std::fs::read(cert)?;
-        let cert = Certificate::from_pem(&bytes)?;
-        let connector = native_tls::TlsConnector::builder()
-            .add_root_certificate(cert)
-            .build()?;
+    let mut client = if args.secure {
+        let connector = native_tls::TlsConnector::builder().build()?;
         let connector = tokio_websockets::Connector::NativeTls(connector.into());
 
         ClientBuilder::from_uri(uri)
