@@ -10,7 +10,7 @@ futures-util = "0.3.28"
 http = "0.2.9"
 jun = { path = "../jun" }
 kord = { git = "https://github.com/twitchax/kord.git" }
-morivar = { path = "../morivar" }
+morivar = { path = "../morivar", features = ["message"]}
 native-tls = "0.2.11"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"

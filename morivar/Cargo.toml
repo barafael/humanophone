@@ -3,8 +3,11 @@ name = "morivar"
 version = "0.1.0"
 edition = "2021"
 
+[features]
+message = ["dep:tokio-websockets"]
+
 [dependencies]
 kord = { git = "https://github.com/twitchax/kord.git", features = ["serde"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
-tokio-websockets = "0.3.2"
+tokio-websockets = { version = "0.3.2", optional = true }

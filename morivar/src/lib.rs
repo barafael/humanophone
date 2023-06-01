@@ -4,6 +4,7 @@ use std::collections::HashSet;
 
 use klib::core::{chord::Chord, note::Note};
 use serde::{Deserialize, Serialize};
+#[cfg(feature = "message")]
 use tokio_websockets::Message;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -14,6 +15,7 @@ pub enum PublisherMessage {
     Silence,
 }
 
+#[cfg(feature = "message")]
 impl PublisherMessage {
     #[must_use]
     pub fn to_message(self) -> Message {
@@ -30,6 +32,7 @@ pub enum ConsumerMessage {
     Silence,
 }
 
+#[cfg(feature = "message")]
 impl ConsumerMessage {
     #[must_use]
     pub fn to_message(self) -> Message {
