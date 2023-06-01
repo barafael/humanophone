@@ -14,7 +14,7 @@ struct Arguments {
     url: Authority,
 
     /// The id to report to Quinnipak
-    #[arg(short, long, default_value = "I am Pehnt")]
+    #[arg(short, long, default_value = "Pehnt")]
     id: String,
 
     #[arg(short, long, default_value_t = false)]

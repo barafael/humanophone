@@ -29,7 +29,7 @@ struct Arguments {
     url: Authority,
 
     /// The id to report to Quinnipak
-    #[arg(short, long, default_value = "I am Pekisch")]
+    #[arg(short, long, default_value = "Pekisch")]
     id: String,
 
     /// The index of the midi device to use

@@ -26,7 +26,7 @@ struct Arguments {
     secure: bool,
 
     /// The id to report to Quinnipak
-    #[arg(short, long, default_value = "I am Abegg")]
+    #[arg(short, long, default_value = "Abegg")]
     id: String,
 
     #[arg(long, default_value_t = false)]

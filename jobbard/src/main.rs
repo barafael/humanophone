@@ -23,7 +23,7 @@ struct Arguments {
     url: Authority,
 
     /// The id to report to Quinnipak
-    #[arg(short, long, default_value = "I am Jobbard")]
+    #[arg(short, long, default_value = "Jobbard")]
     id: String,
 
     /// The input file containing chords

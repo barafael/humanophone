@@ -13,7 +13,7 @@ use tokio::{
     sync::broadcast,
 };
 use tokio_rustls::TlsAcceptor;
-use tokio_websockets::{ServerBuilder, WebsocketStream};
+use tokio_websockets::{Message, ServerBuilder, WebsocketStream};
 use tracing::{info, warn};
 
 mod secure;
@@ -152,8 +152,27 @@ async fn handle_consumer<S>(
 where
     S: AsyncRead + AsyncWrite + Unpin,
 {
-    while let Ok(event) = chords_receiver.recv().await {
-        stream.send(event.to_message()).await?;
+    loop {
+        tokio::select! {
+            event = chords_receiver.recv() => {
+                let m = event.context("Failed to receive message on internal chord bus")?;
+                stream.send(m.to_message()).await?;
+            }
+            item = stream.next() => {
+                match item {
+                    Some(m) => {
+                        let m = m.context("Error on websocket client connection")?;
+                        warn!("Client sending not allowed. Client sent {m:?}");
+                        stream.send(Message::text("A client shall not send after identifying.".to_string())).await?;
+                        break;
+                    }
+                    None => {
+                        info!("Stream ended!");
+                        break;
+                    }
+                }
+            }
+        }
     }
     Ok(())
 }
