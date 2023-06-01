@@ -73,6 +73,9 @@ async fn main() -> anyhow::Result<()> {
                     Ok(ConsumerMessage::PitchesEvent(pitches)) => {
                         info!("Pitches: {pitches:?}");
                     }
+                    Ok(ConsumerMessage::Silence) => {
+                        info!("SILENCE!!!");
+                    }
                     m => {
                         warn!("Unhandled consumer message: {m:?}");
                     }
