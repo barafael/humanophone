@@ -71,11 +71,11 @@ async fn main() -> anyhow::Result<()> {
                 handle_client(ws, chords_tx).await?;
             } else {
                 // The type of `ws` is `WebsocketStream<TcpStream>`
-                let ws = ServerBuilder::new()
+                let wss = ServerBuilder::new()
                     .accept(stream)
                     .await
                     .context("Failed to accept websocket client")?;
-                handle_client(ws, chords_tx).await?;
+                handle_client(wss, chords_tx).await?;
             }
             anyhow::Ok(())
         });
