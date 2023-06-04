@@ -1,7 +1,5 @@
 [workspace]
 
-resolver = "2"
-
 members = [
     "abegg",
     "horeau",
@@ -11,3 +9,5 @@ members = [
     "pekisch",
     "quinnipak",
 ]
+
+resolver = "2"

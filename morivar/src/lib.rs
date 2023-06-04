@@ -1,11 +1,15 @@
 #![doc = include_str!("../README.md")]
 
-use std::collections::HashSet;
+use std::{collections::HashSet, time::Duration};
 
 use klib::core::{chord::Chord, note::Note};
 use serde::{Deserialize, Serialize};
 #[cfg(feature = "message")]
 use tokio_websockets::Message;
+
+pub const PING_INTERVAL: Duration = Duration::from_secs(10);
+pub const PING_AWAIT_INTERVAL: Duration = Duration::from_secs(15);
+pub const PING_TO_PONG_ALLOWED_DELAY: Duration = Duration::from_secs(5);
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum PublisherMessage {
@@ -13,6 +17,10 @@ pub enum PublisherMessage {
     PublishChord(Chord),
     PublishPitches(HashSet<Note>),
     Silence,
+    NowAreYou,
+    InvalidMessage(String),
+    Ping,
+    Pong,
 }
 
 #[cfg(feature = "message")]
@@ -30,6 +38,8 @@ pub enum ConsumerMessage {
     ChordEvent(Chord),
     PitchesEvent(HashSet<Note>),
     Silence,
+    Ping,
+    Pong,
 }
 
 #[cfg(feature = "message")]

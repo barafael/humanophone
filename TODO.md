@@ -13,3 +13,5 @@
 * Start server on host start
 * Finish horeau
 * Make a simple JS-Based web frontend
+* Evaluate using binary messages instead of text
+* Evaluate using websocket-native pingpong
