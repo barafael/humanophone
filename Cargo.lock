@@ -1010,7 +1010,7 @@ dependencies = [
 [[package]]
 name = "kord"
 version = "0.5.20"
-source = "git+https://github.com/barafael/kord.git?branch=wasm-main-feature#59cc677246e76810035de8cd4292733a11dabf25"
+source = "git+https://github.com/barafael/kord.git?branch=wasm-main-feature#9f88548525c838a5298ed56ab4a44b0142283c44"
 dependencies = [
  "anyhow",
  "async-trait",
