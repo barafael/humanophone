@@ -19,4 +19,4 @@ jobs:
       # as it is set as an "override" for current directory
 
       - name: Run cargo
-        run:  sudo apt-get install -y libasound2-dev portaudio19-dev build-essential libpulse-dev libdbus-1-dev && cargo build --verbose
+        run:  sudo apt-get install -y libasound2-dev portaudio19-dev build-essential libpulse-dev libdbus-1-dev && cargo build --verbose && cargo test && cargo clippy
