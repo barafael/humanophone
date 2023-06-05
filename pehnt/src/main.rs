@@ -1,8 +1,8 @@
 #![doc = include_str!("../README.md")]
 
-use clap::{command, Parser, ValueHint};
+use clap::{command, Parser};
 use futures_util::SinkExt;
-use http::{uri::Authority, Uri};
+use http::Uri;
 use morivar::ConsumerMessage;
 use tokio::select;
 use tokio_websockets::ClientBuilder;
@@ -12,25 +12,15 @@ use watchdog::{Reset, Watchdog};
 #[derive(Debug, Parser)]
 #[command(author, version)]
 struct Arguments {
-    #[arg(short, long, value_hint = ValueHint::Url, default_value = "0.0.0.0:8000")]
-    url: Authority,
-
-    /// The id to report to Quinnipak
-    #[arg(short, long, default_value = "Pehnt")]
-    id: String,
-
-    #[arg(short, long, default_value_t = false)]
-    secure: bool,
-
-    #[arg(short, long, default_value_t = false)]
-    pingpong: bool,
+    #[command(flatten)]
+    args: morivar::cli::ClientArguments,
 }
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     tracing_subscriber::fmt::init();
 
-    let args = Arguments::parse();
+    let args = Arguments::parse().args;
 
     let uri = Uri::builder()
         .scheme(if args.secure { "wss" } else { "ws" })
@@ -50,7 +40,9 @@ async fn main() -> anyhow::Result<()> {
         ClientBuilder::from_uri(uri).connect().await?
     };
 
-    let announce = ConsumerMessage::IAmConsumer { id: args.id };
+    let announce = ConsumerMessage::IAmConsumer {
+        id: args.id.unwrap_or("Pehnt".to_string()),
+    };
     stream.send(announce.to_message()).await?;
 
     let mut interval = tokio::time::interval(morivar::PING_INTERVAL);

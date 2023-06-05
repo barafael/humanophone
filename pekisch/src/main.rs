@@ -6,9 +6,9 @@ use std::{
 };
 
 use anyhow::Context;
-use clap::{command, Parser, ValueHint};
+use clap::{command, Parser};
 use futures_util::SinkExt;
-use http::{uri::Authority, Uri};
+use http::Uri;
 use klib::core::{
     chord::Chord,
     note::{HasNoteId, Note},
@@ -25,12 +25,8 @@ use tracing::{info, warn};
 #[derive(Debug, Parser)]
 #[command(author, version)]
 struct Arguments {
-    #[arg(short, long, value_hint = ValueHint::Url, default_value = "0.0.0.0:8000")]
-    url: Authority,
-
-    /// The id to report to Quinnipak
-    #[arg(short, long, default_value = "Pekisch")]
-    id: String,
+    #[command(flatten)]
+    args: morivar::cli::ClientArguments,
 
     /// The index of the midi device to use
     #[arg(long)]
@@ -39,9 +35,6 @@ struct Arguments {
     /// MIDI channel capacity
     #[arg(long, default_value_t = 256)]
     midi_event_queue_length: usize,
-
-    #[arg(short, long, default_value_t = false)]
-    secure: bool,
 }
 
 #[tokio::main]
@@ -49,11 +42,14 @@ async fn main() -> anyhow::Result<()> {
     tracing_subscriber::fmt::init();
 
     let args = Arguments::parse();
+    let device = args.device;
+    let midi_event_queue_length = args.midi_event_queue_length;
+    let args = args.args;
 
-    let (midi_tx, mut midi_rx) = mpsc::channel(args.midi_event_queue_length);
+    let (midi_tx, mut midi_rx) = mpsc::channel(midi_event_queue_length);
 
     let midi_events = spawn_blocking(move || {
-        harvest_midi_events(midi_tx.clone(), args.device).context("Failed to harvest MIDI")
+        harvest_midi_events(midi_tx.clone(), device).context("Failed to harvest MIDI")
     });
 
     let uri = Uri::builder()
@@ -74,7 +70,9 @@ async fn main() -> anyhow::Result<()> {
         ClientBuilder::from_uri(uri).connect().await?
     };
 
-    let announce = PublisherMessage::IAmPublisher { id: args.id };
+    let announce = PublisherMessage::IAmPublisher {
+        id: args.id.unwrap_or("Pekisch".to_string()),
+    };
     client.send(announce.to_message()).await?;
 
     let mut notes = HashSet::new();

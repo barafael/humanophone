@@ -11,6 +11,9 @@ pub const PING_INTERVAL: Duration = Duration::from_secs(10);
 pub const PING_AWAIT_INTERVAL: Duration = Duration::from_secs(15);
 pub const PING_TO_PONG_ALLOWED_DELAY: Duration = Duration::from_secs(5);
 
+#[cfg(feature = "cli")]
+pub mod cli;
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum PublisherMessage {
     IAmPublisher { id: String },

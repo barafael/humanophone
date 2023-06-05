@@ -11,7 +11,7 @@ http = "0.2.9"
 kord = { git = "https://github.com/twitchax/kord.git" }
 midi-control = "0.2.2"
 midir = "0.9.1"
-morivar = { path = "../morivar", features = ["message"] }
+morivar = { path = "../morivar", features = ["message", "cli"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 tokio = { version = "1.28.2", features = ["full"] }

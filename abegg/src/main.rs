@@ -2,9 +2,9 @@
 
 use std::time::Duration;
 
-use clap::{command, Parser, ValueHint};
+use clap::{command, Parser};
 use futures_util::SinkExt;
-use http::{uri::Authority, Uri};
+use http::Uri;
 use klib::core::{base::Playable, named_pitch::NamedPitch, note::Note, octave::Octave};
 use morivar::ConsumerMessage;
 use once_cell::sync::Lazy;
@@ -19,16 +19,10 @@ mod tone;
 #[derive(Debug, Parser)]
 #[command(author, version)]
 struct Arguments {
-    #[arg(short, long, value_hint = ValueHint::Url, default_value = "0.0.0.0:8000")]
-    url: Authority,
+    #[command(flatten)]
+    args: morivar::cli::ClientArguments,
 
-    #[arg(short, long, default_value_t = false)]
-    secure: bool,
-
-    /// The id to report to Quinnipak
-    #[arg(short, long, default_value = "Abegg")]
-    id: String,
-
+    /// Whether to play the ABEGG jingle
     #[arg(long, default_value_t = false)]
     jingle: bool,
 }
@@ -57,8 +51,10 @@ async fn main() -> anyhow::Result<()> {
     tracing_subscriber::fmt::init();
 
     let args = Arguments::parse();
+    let play_jingle = args.jingle;
+    let args = args.args;
 
-    if args.jingle {
+    if play_jingle {
         jingle(&*ABEGG)?;
     }
 
@@ -80,7 +76,9 @@ async fn main() -> anyhow::Result<()> {
         ClientBuilder::from_uri(uri).connect().await?
     };
 
-    let announce = ConsumerMessage::IAmConsumer { id: args.id };
+    let announce = ConsumerMessage::IAmConsumer {
+        id: args.id.unwrap_or("Abegg".to_string()),
+    };
     client.send(announce.to_message()).await?;
 
     let mut handle = None;

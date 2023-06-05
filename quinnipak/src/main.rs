@@ -24,15 +24,19 @@ mod secure;
 #[derive(Debug, Parser)]
 #[command(author, version)]
 struct Arguments {
+    /// The address to bind on
     #[arg(short, long, default_value = "0.0.0.0:8000")]
     address: SocketAddr,
 
+    /// The security mode
     #[command(subcommand)]
     mode: Option<SecurityMode>,
 
+    /// The channel size for the chord broadcast
     #[arg(long, default_value_t = 64)]
     chords_channel_size: usize,
 
+    /// Whether to monitor consumers for pings
     #[arg(long, default_value_t = false)]
     pingpong: bool,
 }

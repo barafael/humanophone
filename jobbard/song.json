@@ -28,11 +28,11 @@
       {
         "Dominant": "Seven"
       },
-      {
-        "Dominant": "Nine"
-      }
+      "Flat9"
     ],
-    "extensions": [],
+    "extensions": [
+      "Add13"
+    ],
     "inversion": 0,
     "is_crunchy": false
   },
@@ -46,6 +46,24 @@
     "extensions": [
       "Add6",
       "Add9"
+    ],
+    "inversion": 0,
+    "is_crunchy": false
+  },
+  {
+    "root": {
+      "octave": "Four",
+      "named_pitch": "D"
+    },
+    "slash": null,
+    "modifiers": [
+      {
+        "Dominant": "Seven"
+      },
+      "Sharp9"
+    ],
+    "extensions": [
+      "Flat13"
     ],
     "inversion": 0,
     "is_crunchy": false

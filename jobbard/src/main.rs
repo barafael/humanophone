@@ -3,12 +3,12 @@
 use std::{fs::File, io::BufReader, path::PathBuf, time::Duration};
 
 use anyhow::{Context, Ok};
-use clap::{command, Parser, ValueHint};
+use clap::{command, Parser};
 use futures_util::SinkExt;
-use http::{uri::Authority, Uri};
+use http::Uri;
 use klib::core::{
     chord::{Chord, Chordable},
-    modifier::Degree,
+    modifier::{Degree, Extension, Modifier},
     note,
 };
 use morivar::PublisherMessage;
@@ -19,12 +19,8 @@ use tracing::info;
 #[derive(Debug, Parser)]
 #[command(author, version)]
 struct Arguments {
-    #[arg(short, long, value_hint = ValueHint::Url, default_value = "0.0.0.0:8000")]
-    url: Authority,
-
-    /// The id to report to Quinnipak
-    #[arg(short, long, default_value = "Jobbard")]
-    id: String,
+    #[command(flatten)]
+    args: morivar::cli::ClientArguments,
 
     /// The input file containing chords
     #[arg(short, long, default_value = "song.json")]
@@ -37,16 +33,20 @@ struct Arguments {
     /// The interval to play new chords at
     #[arg(long, default_value_t = Duration::from_secs(5).into())]
     interval: humantime::Duration,
-
-    #[arg(short, long, default_value_t = false)]
-    secure: bool,
 }
 
-fn simple_sequence() -> [Chord; 3] {
+fn simple_sequence() -> [Chord; 4] {
     let gm9 = Chord::new(note::G).minor().seven().add9().add11();
-    let c9 = Chord::new(note::C).dominant(Degree::Nine).seven();
+    let c9 = Chord::new(note::C)
+        .dominant(Degree::Seven)
+        .with_modifier(Modifier::Flat9)
+        .add13();
     let f69 = Chord::new(note::F).add_six().add_nine();
-    [gm9, c9, f69]
+    let ab13 = Chord::new(note::D)
+        .dominant7()
+        .with_extension(Extension::Flat13)
+        .with_modifier(Modifier::Sharp9);
+    [gm9, c9, f69, ab13]
 }
 
 #[tokio::main]
@@ -54,15 +54,19 @@ async fn main() -> anyhow::Result<()> {
     tracing_subscriber::fmt::init();
 
     let args = Arguments::parse();
+    let song = args.song;
+    let template = args.template;
+    let interval = args.interval;
+    let args = args.args;
 
-    if let Some(path) = args.template {
+    if let Some(path) = template {
         let song = simple_sequence();
         std::fs::write(path, serde_json::to_string_pretty(&song).unwrap()).unwrap();
         info!("Wrote template song, exiting");
         return Ok(());
     }
 
-    let song: Vec<Chord> = serde_json::from_reader(BufReader::new(File::open(args.song)?))?;
+    let song: Vec<Chord> = serde_json::from_reader(BufReader::new(File::open(song)?))?;
     let song = song.iter().cycle();
 
     let uri = Uri::builder()
@@ -83,7 +87,9 @@ async fn main() -> anyhow::Result<()> {
         ClientBuilder::from_uri(uri).connect().await?
     };
 
-    let announce = PublisherMessage::IAmPublisher { id: args.id };
+    let announce = PublisherMessage::IAmPublisher {
+        id: args.id.unwrap_or("Jobbard".to_string()),
+    };
     client.send(announce.to_message()).await?;
 
     for chord in song {
@@ -91,7 +97,7 @@ async fn main() -> anyhow::Result<()> {
         client
             .send(PublisherMessage::PublishChord(chord.clone()).to_message())
             .await?;
-        tokio::time::sleep(args.interval.into()).await;
+        tokio::time::sleep(interval.into()).await;
         tokio::time::sleep(Duration::from_millis(500)).await;
         client.send(PublisherMessage::Silence.to_message()).await?;
     }

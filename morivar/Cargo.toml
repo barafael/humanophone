@@ -5,8 +5,11 @@ edition = "2021"
 
 [features]
 message = ["dep:tokio-websockets"]
+cli = ["dep:clap"]
 
 [dependencies]
+clap = { version = "4", features = ["derive"], optional = true }
+http = "0.2.9"
 kord = { git = "https://github.com/twitchax/kord.git", features = ["serde"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
