@@ -10,7 +10,7 @@ dependencies = [
  "clap",
  "futures-util",
  "http",
- "kord 0.5.20 (git+https://github.com/twitchax/kord.git)",
+ "kord",
  "morivar",
  "native-tls",
  "once_cell",
@@ -847,7 +847,7 @@ name = "horeau"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "kord 0.5.20 (git+https://github.com/barafael/kord.git?branch=wasm-main-feature)",
+ "kord",
  "morivar",
  "serde",
  "serde_json",
@@ -984,7 +984,7 @@ dependencies = [
  "futures-util",
  "http",
  "humantime",
- "kord 0.5.20 (git+https://github.com/twitchax/kord.git)",
+ "kord",
  "morivar",
  "serde",
  "serde_json",
@@ -1016,35 +1016,17 @@ dependencies = [
 [[package]]
 name = "kord"
 version = "0.5.20"
-source = "git+https://github.com/barafael/kord.git?branch=wasm-main-feature#9f88548525c838a5298ed56ab4a44b0142283c44"
-dependencies = [
- "anyhow",
- "async-trait",
- "console_error_panic_hook",
- "gloo-timers",
- "js-sys",
- "once_cell",
- "paste",
- "pest",
- "pest_derive",
- "rodio",
- "serde",
- "wasm-bindgen",
- "wasm-bindgen-futures",
- "wee_alloc",
-]
-
-[[package]]
-name = "kord"
-version = "0.5.20"
 source = "git+https://github.com/twitchax/kord.git#beee607976d844161f4f4502aa3778a626cd0a28"
 dependencies = [
  "anyhow",
  "async-trait",
  "clap",
+ "console_error_panic_hook",
  "cpal",
  "futures",
  "futures-timer",
+ "gloo-timers",
+ "js-sys",
  "once_cell",
  "parse_duration0",
  "paste",
@@ -1054,6 +1036,9 @@ dependencies = [
  "rustfft",
  "serde",
  "symphonia",
+ "wasm-bindgen",
+ "wasm-bindgen-futures",
+ "wee_alloc",
 ]
 
 [[package]]
@@ -1186,7 +1171,7 @@ version = "0.1.0"
 dependencies = [
  "clap",
  "http",
- "kord 0.5.20 (git+https://github.com/twitchax/kord.git)",
+ "kord",
  "serde",
  "serde_json",
  "tokio-websockets",
@@ -1481,7 +1466,7 @@ dependencies = [
  "clap",
  "futures-util",
  "http",
- "kord 0.5.20 (git+https://github.com/twitchax/kord.git)",
+ "kord",
  "morivar",
  "native-tls",
  "serde",
@@ -1502,7 +1487,7 @@ dependencies = [
  "clap",
  "futures-util",
  "http",
- "kord 0.5.20 (git+https://github.com/twitchax/kord.git)",
+ "kord",
  "midi-control",
  "midir",
  "morivar",
@@ -1702,7 +1687,7 @@ dependencies = [
  "either",
  "futures-util",
  "http",
- "kord 0.5.20 (git+https://github.com/twitchax/kord.git)",
+ "kord",
  "morivar",
  "rustls",
  "rustls-pemfile",
