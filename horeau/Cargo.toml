@@ -12,5 +12,9 @@ kord = { git = "https://github.com/twitchax/kord.git", features = [
 morivar = { path = "../morivar" }
 serde = { version = "1.0.163", features = ["derive"] }
 serde_json = "1.0.96"
+tracing = "0.1.37"
+tracing-subscriber = { version = "0.3.17", features = ["fmt", "std"] }
+tracing-web = "0.1.2"
+wasm-bindgen = "0.2.86"
 yew = { version = "0.20.0", features = ["csr"] }
 yew-websocket = "1.0.0"

@@ -26,7 +26,7 @@ struct Arguments {
     #[arg(short, long, default_value = "song.json")]
     song: PathBuf,
 
-    /// A path for generating a simple song template file with 3 chords in it
+    /// A path for generating a simple song template file with 4 chords in it
     #[arg(short, long)]
     template: Option<PathBuf>,
 

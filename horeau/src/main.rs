@@ -1,10 +1,9 @@
 #![doc = include_str!("../README.md")]
 
 use anyhow::Error;
-use klib::core::chord::Chord;
+use klib::core::base::{HasName, Playable, PlaybackHandle};
 use morivar::ConsumerMessage;
 //use morivar::{ConsumerMessage, PublisherMessage};
-use serde::Deserialize;
 
 use yew::{html, Component, Context, Html};
 use yew_websocket::macros::Json;
@@ -15,6 +14,11 @@ pub enum WsAction {
     Disconnect,
     Lost,
 }
+use tracing_subscriber::{
+    fmt::format::{FmtSpan, Pretty},
+    prelude::*,
+};
+use wasm_bindgen::JsValue;
 
 pub enum Msg {
     WsAction(WsAction),
@@ -28,19 +32,21 @@ impl From<WsAction> for Msg {
 }
 
 /// This type is an expected response from a websocket connection.
-#[derive(Deserialize, Debug)]
-pub struct WsResponse {
-    value: Chord,
-}
+pub type WsResponse = ConsumerMessage;
 
 pub struct Model {
-    pub data: Option<Chord>,
+    pub data: Option<ConsumerMessage>,
     pub ws: Option<WebSocketTask>,
+    pub handle: Option<PlaybackHandle>,
 }
 
 impl Model {
     fn view_data(&self) -> Html {
-        if let Ok(value) = serde_json::to_string_pretty(&self.data) {
+        if let Some(ConsumerMessage::ChordEvent(chord)) = &self.data {
+            html!(
+                <p>{ format!("{}", chord.name()) }</p>
+            )
+        } else if let Ok(value) = serde_json::to_string_pretty(&self.data) {
             html! {
                 <p>{ value }</p>
             }
@@ -60,6 +66,7 @@ impl Component for Model {
         Self {
             data: None,
             ws: None,
+            handle: None,
         }
     }
 
@@ -74,12 +81,9 @@ impl Component for Model {
                             Some(WsAction::Lost.into())
                         }
                     });
-                    let task = WebSocketService::connect(
-                        "wss://humanoph.one:8000",
-                        callback,
-                        notification,
-                    )
-                    .unwrap();
+                    let task =
+                        WebSocketService::connect("wss://humanoph.one:443", callback, notification)
+                            .unwrap();
                     self.ws = Some(task);
                     true
                 }
@@ -101,7 +105,12 @@ impl Component for Model {
                 }
             },
             Msg::WsReady(response) => {
-                self.data = response.map(|data| data.value).ok();
+                tracing::info!("{response:?}");
+                self.data = response.map(|data| data).ok();
+                if let Some(ConsumerMessage::ChordEvent(chord)) = &self.data {
+                    let handle = chord.play(0.0, 4.0, 0.1).unwrap();
+                    self.handle = Some(handle);
+                }
                 true
             }
         }
@@ -131,5 +140,19 @@ impl Component for Model {
 }
 
 fn main() {
+    let fmt_layer = tracing_subscriber::fmt::layer()
+        .with_ansi(false)
+        .without_time()
+        .with_writer(tracing_web::MakeConsoleWriter)
+        .with_span_events(FmtSpan::ACTIVE);
+    let perf_layer = tracing_web::performance_layer().with_details_from_fields(Pretty::default());
+
+    tracing_subscriber::registry()
+        .with(fmt_layer)
+        .with(perf_layer)
+        .init();
+    let object = JsValue::from("world");
+    tracing::info!("Hello {}", object.as_string().unwrap());
+
     yew::Renderer::<Model>::new().render();
 }
