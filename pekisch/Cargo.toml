@@ -5,7 +5,7 @@ edition = "2021"
 
 [dependencies]
 anyhow = "1.0.71"
-clap = { version = "4.3.1", features = ["derive"] }
+clap = { version = "4.3.3", features = ["derive"] }
 futures-util = "0.3.28"
 http = "0.2.9"
 kord = { git = "https://github.com/twitchax/kord.git" }
