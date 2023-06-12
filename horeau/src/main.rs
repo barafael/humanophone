@@ -1,5 +1,7 @@
 #![doc = include_str!("../README.md")]
 
+use std::time::Duration;
+
 use anyhow::Error;
 use klib::core::base::{HasName, Playable, PlaybackHandle};
 use morivar::ConsumerMessage;
@@ -106,9 +108,15 @@ impl Component for Model {
             },
             Msg::WsReady(response) => {
                 tracing::info!("{response:?}");
-                self.data = response.map(|data| data).ok();
+                self.data = response.ok();
                 if let Some(ConsumerMessage::ChordEvent(chord)) = &self.data {
-                    let handle = chord.play(0.0, 4.0, 0.1).unwrap();
+                    let handle = chord
+                        .play(
+                            Duration::ZERO,
+                            Duration::from_secs(4),
+                            Duration::from_millis(100),
+                        )
+                        .unwrap();
                     self.handle = Some(handle);
                 }
                 true

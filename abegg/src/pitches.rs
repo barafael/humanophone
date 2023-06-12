@@ -1,4 +1,4 @@
-use std::collections::HashSet;
+use std::{collections::HashSet, time::Duration};
 
 use klib::core::{
     base::{Playable, PlaybackHandle, Res as KlibResult},
@@ -16,13 +16,17 @@ impl From<HashSet<Note>> for Pitches {
 }
 
 impl Playable for Pitches {
-    fn play(&self, delay: f32, length: f32, fade_in: f32) -> KlibResult<PlaybackHandle> {
+    fn play(
+        &self,
+        delay: Duration,
+        length: Duration,
+        fade_in: Duration,
+    ) -> KlibResult<PlaybackHandle> {
         use rodio::{source::SineWave, OutputStream, Sink, Source};
-        use std::time::Duration;
 
         let chord_tones = &self.0;
 
-        if length <= chord_tones.len() as f32 * delay {
+        if length <= delay * chord_tones.len() as u32 {
             return Err(anyhow::Error::msg(
                 "The delay is too long for the length of play (i.e., the number of chord tones times the delay is longer than the length).",
             ));
@@ -35,13 +39,13 @@ impl Playable for Pitches {
         for (k, n) in chord_tones.iter().enumerate() {
             let sink = Sink::try_new(&stream_handle)?;
 
-            let d = k as f32 * delay;
+            let d = delay * k as u32;
 
             let source = SineWave::new(n.frequency())
-                .take_duration(Duration::from_secs_f32(length - d))
+                .take_duration(length - d)
                 .buffered()
-                .delay(Duration::from_secs_f32(d))
-                .fade_in(Duration::from_secs_f32(fade_in))
+                .delay(d)
+                .fade_in(fade_in)
                 .amplify(0.20);
 
             sink.append(source);

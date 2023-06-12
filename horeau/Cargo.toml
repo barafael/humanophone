@@ -5,7 +5,7 @@ edition = "2021"
 
 [dependencies]
 anyhow = "1.0.71"
-kord = { git = "https://github.com/twitchax/kord.git", features = [
+kord = { git = "https://github.com/barafael/kord.git", branch = "patch-1", features = [
     "serde",
     "wasm",
 ], default-features = false }

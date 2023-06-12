@@ -10,11 +10,9 @@ use morivar::ConsumerMessage;
 use once_cell::sync::Lazy;
 use pitches::Pitches;
 use tokio_websockets::ClientBuilder;
-use tone::Tone;
 use tracing::warn;
 
 mod pitches;
-mod tone;
 
 #[derive(Debug, Parser)]
 #[command(author, version)]
@@ -39,7 +37,11 @@ static ABEGG: Lazy<[(Note, f32, f32); 5]> = Lazy::new(|| {
 
 fn jingle(events: &[(Note, f32, f32)]) -> anyhow::Result<()> {
     for (note, length, pause) in events {
-        let _handle = Tone::from(*note).play(0.0, *length, 0.01)?;
+        let _handle = note.play(
+            Duration::ZERO,
+            Duration::from_secs_f32(*length),
+            Duration::from_millis(10),
+        )?;
         std::thread::sleep(Duration::from_secs_f32(*length));
         std::thread::sleep(Duration::from_secs_f32(*pause));
     }
@@ -88,11 +90,19 @@ async fn main() -> anyhow::Result<()> {
             if let Ok(text) = msg.as_text() {
                 match serde_json::from_str(text) {
                     Ok(ConsumerMessage::ChordEvent(chord)) => {
-                        let ph = chord.play(0.0, 5.0, 0.5)?;
+                        let ph = chord.play(
+                            Duration::ZERO,
+                            Duration::from_secs(5),
+                            Duration::from_millis(500),
+                        )?;
                         let _ = handle.insert(ph);
                     }
                     Ok(ConsumerMessage::PitchesEvent(pitches)) => {
-                        let ph = Pitches::from(pitches).play(0.0, 5.0, 0.5)?;
+                        let ph = Pitches::from(pitches).play(
+                            Duration::ZERO,
+                            Duration::from_secs(5),
+                            Duration::from_millis(500),
+                        )?;
                         let _ = handle.insert(ph);
                     }
                     Ok(ConsumerMessage::Silence) => {
