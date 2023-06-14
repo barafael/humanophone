@@ -8,7 +8,7 @@ anyhow = "1.0.71"
 clap = { version = "4.3.3", features = ["derive"] }
 futures-util = "0.3.28"
 http = "0.2.9"
-kord = { git = "https://github.com/barafael/kord.git", branch = "patch-1" }
+kord = { git = "https://github.com/twitchax/kord.git" }
 midi-control = "0.2.2"
 midir = "0.9.1"
 morivar = { path = "../morivar", features = ["message", "cli"] }
