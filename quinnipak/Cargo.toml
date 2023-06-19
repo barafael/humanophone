@@ -5,13 +5,13 @@ edition = "2021"
 
 [dependencies]
 anyhow = "1.0.71"
-clap = { version = "4.3.3", features = ["derive"] }
+clap = { version = "4.3.4", features = ["derive"] }
 either = "1.8.1"
 futures-util = "0.3.28"
 http = "0.2.9"
 kord = { git = "https://github.com/twitchax/kord.git" }
 morivar = { path = "../morivar", features = ["message"] }
-rustls = "0.21.1"
+rustls = "0.21.2"
 rustls-pemfile = "1.0.2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
