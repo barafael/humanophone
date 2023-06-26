@@ -13,8 +13,8 @@ use klib::core::{
     chord::Chord,
     note::{HasNoteId, Note},
 };
-use midi_control::MidiMessage;
 use midir::{Ignore, MidiInput};
+use midly::{live::LiveEvent, MidiMessage};
 use morivar::PublisherMessage;
 use tokio::sync::mpsc;
 use tokio::task::spawn_blocking;
@@ -71,25 +71,27 @@ async fn main() -> anyhow::Result<()> {
     };
 
     let announce = PublisherMessage::IAmPublisher {
-        id: args.id.unwrap_or("Pekisch".to_string()),
+        id: args.id.unwrap_or_else(|| "Pekisch".to_string()),
     };
     client.send(announce.to_message()).await?;
 
     let mut notes = HashSet::new();
-    while let Some((_stamp, message)) = midi_rx.recv().await {
+    while let Some(message) = midi_rx.recv().await {
         match message {
-            MidiMessage::NoteOn(_channel, event) => {
-                if let Ok(note) = Note::from_id(1u128 << event.key) {
-                    notes.insert(note);
+            MidiMessage::NoteOn { key, vel } => {
+                if let Ok(note) = Note::from_id(1u128 << key.as_int()) {
+                    if vel == 0 {
+                        // It's a note-off, just hiding
+                        notes.remove(&note);
+                    } else {
+                        notes.insert(note);
+                    }
                 }
             }
-            MidiMessage::NoteOff(_channel, event) => {
-                if let Ok(note) = Note::from_id(1u128 << event.key) {
+            MidiMessage::NoteOff { key, .. } => {
+                if let Ok(note) = Note::from_id(1u128 << key.as_int()) {
                     notes.remove(&note);
                 }
-            }
-            MidiMessage::Invalid => {
-                notes.clear();
             }
             e => {
                 warn!("Unhandled MIDI message: {e:?}");
@@ -114,7 +116,7 @@ async fn main() -> anyhow::Result<()> {
 }
 
 fn harvest_midi_events(
-    midi_tx: mpsc::Sender<(u64, MidiMessage)>,
+    midi_tx: mpsc::Sender<MidiMessage>,
     index: Option<usize>,
 ) -> anyhow::Result<()> {
     let mut midi_in = MidiInput::new("midir reading input")?;
@@ -165,9 +167,9 @@ fn harvest_midi_events(
         .connect(
             in_port,
             "humanophone-midi-in",
-            move |stamp, message, _| {
-                let message = MidiMessage::from(message);
-                if let Err(e) = midi_tx.blocking_send((stamp, message)) {
+            move |_stamp, message, _| {
+                let Some(msg) = on_midi(message) else { return };
+                if let Err(e) = midi_tx.blocking_send(msg) {
                     warn!("Failed to forward midi message: {e}");
                 }
             },
@@ -184,4 +186,15 @@ fn harvest_midi_events(
 
     println!("Closing connection");
     Ok(())
+}
+
+fn on_midi(event: &[u8]) -> Option<MidiMessage> {
+    let event = LiveEvent::parse(event).unwrap();
+    match event {
+        LiveEvent::Midi { message, .. } => match message {
+            msg @ (MidiMessage::NoteOn { .. } | MidiMessage::NoteOff { .. }) => Some(msg),
+            _ => None,
+        },
+        _ => None,
+    }
 }
