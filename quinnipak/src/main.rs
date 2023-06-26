@@ -4,7 +4,7 @@ use std::{net::SocketAddr, sync::Arc};
 
 use anyhow::Context;
 use clap::Parser;
-use morivar::{ConsumerMessage, PublisherMessage};
+use morivar::{ConsumerMessage, PublisherMessage, PROTOCOL_VERSION};
 use secure::{load_certs, load_keys, SecurityMode};
 use tokio::{
     io::{AsyncRead, AsyncWrite},
@@ -12,7 +12,7 @@ use tokio::{
     sync::broadcast,
 };
 use tokio_rustls::TlsAcceptor;
-use tokio_websockets::{ServerBuilder, WebsocketStream};
+use tokio_websockets::{Message, ServerBuilder, WebsocketStream};
 use tracing::{info, warn};
 
 use crate::{consumer::handle_consumer, publisher::handle_publisher};
@@ -112,6 +112,15 @@ async fn handle_client<S>(
 where
     S: AsyncRead + AsyncWrite + Unpin,
 {
+    // Receive protocol version message from client
+    let Some(Ok(version)) = stream.next().await else {
+        anyhow::bail!("Failed to get protocol version message");
+    };
+
+    let version = determine_protocol_version(version).context("Protocol error")?;
+
+    anyhow::ensure!(version == PROTOCOL_VERSION, "Protocol version mismatch");
+
     // Receive identification message from client
     let Some(Ok(identification)) = stream.next().await else {
         anyhow::bail!("Failed to ID");
@@ -125,7 +134,26 @@ where
             info!("Identified \"{id}\" as consumer");
             let chords_rx = chords_sender.subscribe();
             handle_consumer(chords_rx, stream, pingpong).await?;
+        } else {
+            anyhow::bail!("Protocol error, client identification failed: {text}");
         }
-    }
+    } else {
+        anyhow::bail!("Protocol error, second message wasn't a text message: {identification:?}");
+    };
     Ok(())
+}
+
+fn determine_protocol_version(version: Message) -> anyhow::Result<u32> {
+    let Ok(text) = version.as_text() else {
+        anyhow::bail!("initial message wasn't a text message: {version:?}");
+    };
+    if let Ok(PublisherMessage::Protocol { version }) = serde_json::from_str(text) {
+        info!("Publisher client with protocol version {version}");
+        Ok(version)
+    } else if let Ok(ConsumerMessage::Protocol { version }) = serde_json::from_str(text) {
+        info!("Consumer client with protocol version {version}");
+        Ok(version)
+    } else {
+        anyhow::bail!("version decoding failed: {text}");
+    }
 }

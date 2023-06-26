@@ -15,3 +15,6 @@
 * Make a simple JS-Based web frontend
 * Evaluate using binary messages instead of text
 * Evaluate using websocket-native pingpong
+* ~~Protocol version~~
+* Cleanly handle websocket close messages
+* Consider cross-cutting the protocol types differently. Client and server messages? Currently, for example ping and pong live in the same enum.

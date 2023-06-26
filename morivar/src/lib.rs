@@ -14,9 +14,12 @@ pub const PING_TO_PONG_ALLOWED_DELAY: Duration = Duration::from_secs(5);
 #[cfg(feature = "cli")]
 pub mod cli;
 
+pub const PROTOCOL_VERSION: u32 = 1;
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum PublisherMessage {
     IAmPublisher { id: String },
+    Protocol { version: u32 },
     PublishChord(Chord),
     PublishPitches(HashSet<Note>),
     Silence,
@@ -38,6 +41,7 @@ impl PublisherMessage {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum ConsumerMessage {
     IAmConsumer { id: String },
+    Protocol { version: u32 },
     ChordEvent(Chord),
     PitchesEvent(HashSet<Note>),
     Silence,
