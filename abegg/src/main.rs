@@ -18,7 +18,7 @@ mod pitches;
 #[command(author, version)]
 struct Arguments {
     #[command(flatten)]
-    args: morivar::cli::ClientArguments,
+    args: morivar::cli::ClientArguments<{ env!("CARGO_BIN_NAME") }>,
 
     /// Whether to play the ABEGG jingle
     #[arg(long, default_value_t = false)]
@@ -78,9 +78,7 @@ async fn main() -> anyhow::Result<()> {
         ClientBuilder::from_uri(uri).connect().await?
     };
 
-    let announce = ConsumerMessage::IAmConsumer {
-        id: args.id.unwrap_or("Abegg".to_string()),
-    };
+    let announce = ConsumerMessage::IAmConsumer { id: args.id };
     client.send(announce.to_message()).await?;
 
     let mut handle = None;

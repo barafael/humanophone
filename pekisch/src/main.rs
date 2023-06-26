@@ -26,7 +26,7 @@ mod midi;
 #[command(author, version)]
 struct Arguments {
     #[command(flatten)]
-    args: morivar::cli::ClientArguments,
+    args: morivar::cli::ClientArguments<{ env!("CARGO_BIN_NAME") }>,
 
     /// The index of the midi device to use
     #[arg(long)]
@@ -70,9 +70,7 @@ async fn main() -> anyhow::Result<()> {
         ClientBuilder::from_uri(uri).connect().await?
     };
 
-    let announce = PublisherMessage::IAmPublisher {
-        id: args.id.unwrap_or_else(|| "Pekisch".to_string()),
-    };
+    let announce = PublisherMessage::IAmPublisher { id: args.id };
     client.send(announce.to_message()).await?;
 
     let mut notes = HashSet::new();

@@ -1,3 +1,5 @@
+#![allow(incomplete_features)]
+#![feature(adt_const_params)]
 #![doc = include_str!("../README.md")]
 
 use std::{collections::HashSet, time::Duration};

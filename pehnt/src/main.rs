@@ -13,7 +13,7 @@ use watchdog::{Reset, Watchdog};
 #[command(author, version)]
 struct Arguments {
     #[command(flatten)]
-    args: morivar::cli::ClientArguments,
+    args: morivar::cli::ClientArguments<{ env!("CARGO_BIN_NAME") }>,
 }
 
 #[tokio::main]
@@ -40,9 +40,7 @@ async fn main() -> anyhow::Result<()> {
         ClientBuilder::from_uri(uri).connect().await?
     };
 
-    let announce = ConsumerMessage::IAmConsumer {
-        id: args.id.unwrap_or("Pehnt".to_string()),
-    };
+    let announce = ConsumerMessage::IAmConsumer { id: args.id };
     stream.send(announce.to_message()).await?;
 
     let mut interval = tokio::time::interval(morivar::PING_INTERVAL);

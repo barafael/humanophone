@@ -3,13 +3,13 @@ use http::uri::Authority;
 
 #[derive(Debug, Args)]
 #[command(author, version)]
-pub struct ClientArguments {
+pub struct ClientArguments<const NAME: &'static str> {
     #[arg(short, long, value_hint = ValueHint::Url, default_value = "0.0.0.0:8000")]
     pub url: Authority,
 
     /// The id to report to Quinnipak
-    #[arg(short, long)]
-    pub id: Option<String>,
+    #[arg(short, long, default_value = NAME)]
+    pub id: String,
 
     /// Whether to secure the connection (requires certificates for the server)
     #[arg(short, long, default_value_t = false)]
