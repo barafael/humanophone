@@ -23,7 +23,7 @@ struct Arguments {
     args: morivar::cli::ClientArguments,
 
     /// The input file containing chords
-    #[arg(short, long, default_value = "song.json")]
+    #[arg(long, default_value = "song.json")]
     song: PathBuf,
 
     /// A path for generating a simple song template file with 4 chords in it
