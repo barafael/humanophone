@@ -5,7 +5,7 @@ edition = "2021"
 
 [dependencies]
 anyhow = "1.0.71"
-clap = { version = "4.3.4", features = ["derive"] }
+clap = { version = "4.3.8", features = ["derive"] }
 futures-util = "0.3.28"
 http = "0.2.9"
 kord = { git = "https://github.com/twitchax/kord.git", features = ["audio"] }
@@ -17,6 +17,6 @@ serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 tokio = { version = "1.28.2", features = ["full"] }
 tokio-native-tls = "0.3.1"
-tokio-websockets = { version = "0.3.2", features = ["client", "native-tls"] }
+tokio-websockets = { version = "0.3.3", features = ["client", "native-tls"] }
 tracing = "0.1.37"
 tracing-subscriber = "0.3.17"

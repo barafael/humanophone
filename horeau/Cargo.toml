@@ -11,7 +11,7 @@ kord = { git = "https://github.com/twitchax/kord.git", features = [
 ], default-features = false }
 morivar = { path = "../morivar" }
 serde = { version = "1.0.164", features = ["derive"] }
-serde_json = "1.0.96"
+serde_json = "1.0.99"
 tracing = "0.1.37"
 tracing-subscriber = { version = "0.3.17", features = ["fmt", "std"] }
 tracing-web = "0.1.2"
