@@ -12,7 +12,7 @@ use tokio_websockets::{Message, WebsocketStream};
 use tracing::{info, warn};
 use watchdog::{Reset, Watchdog};
 
-pub async fn handle_publisher<S>(
+pub async fn run<S>(
     chords_sender: broadcast::Sender<ConsumerMessage>,
     mut stream: WebsocketStream<S>,
     pingpong: bool,
@@ -25,7 +25,7 @@ where
         select! {
             msg = stream.next() => {
                 match msg {
-                    Some(Ok(msg)) => {
+                    Some(Ok(ref msg)) => {
                         resetter.send(Reset::Signal).await?;
                         match handle_message(msg) {
                             Forward(consumer_message) => {
@@ -59,7 +59,7 @@ where
     }
 }
 
-fn handle_message(msg: Message) -> Response<ConsumerMessage, PublisherMessage> {
+fn handle_message(msg: &Message) -> Response<ConsumerMessage, PublisherMessage> {
     if let Ok(text) = msg.as_text() {
         match serde_json::from_str(text) {
             Ok(PublisherMessage::PublishChord(chord)) => {

@@ -29,7 +29,7 @@ pub enum Msg {
 
 impl From<WsAction> for Msg {
     fn from(action: WsAction) -> Self {
-        Msg::WsAction(action)
+        Self::WsAction(action)
     }
 }
 

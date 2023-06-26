@@ -15,8 +15,6 @@ use tokio_rustls::TlsAcceptor;
 use tokio_websockets::{Message, ServerBuilder, WebsocketStream};
 use tracing::{info, warn};
 
-use crate::{consumer::handle_consumer, publisher::handle_publisher};
-
 mod consumer;
 mod publisher;
 mod secure;
@@ -71,7 +69,7 @@ async fn main() -> anyhow::Result<()> {
 
         tokio::spawn(async move {
             if let Err(e) = handle_connection(stream, chords_tx, acceptor, args.pingpong).await {
-                warn!("Error while handling connection: {e:?}")
+                warn!("Error while handling connection: {e:?}");
             }
         });
     }
@@ -117,7 +115,7 @@ where
         anyhow::bail!("Failed to get protocol version message");
     };
 
-    let version = determine_protocol_version(version).context("Protocol error")?;
+    let version = determine_protocol_version(&version).context("Protocol error")?;
 
     anyhow::ensure!(version == PROTOCOL_VERSION, "Protocol version mismatch");
 
@@ -129,11 +127,11 @@ where
     if let Ok(text) = identification.as_text() {
         if let Ok(PublisherMessage::IAmPublisher { id }) = serde_json::from_str(text) {
             info!("Identified \"{id}\" as publisher");
-            handle_publisher(chords_sender, stream, pingpong).await?;
+            publisher::run(chords_sender, stream, pingpong).await?;
         } else if let Ok(ConsumerMessage::IAmConsumer { id }) = serde_json::from_str(text) {
             info!("Identified \"{id}\" as consumer");
             let chords_rx = chords_sender.subscribe();
-            handle_consumer(chords_rx, stream, pingpong).await?;
+            consumer::run(chords_rx, stream, pingpong).await?;
         } else {
             anyhow::bail!("Protocol error, client identification failed: {text}");
         }
@@ -143,7 +141,7 @@ where
     Ok(())
 }
 
-fn determine_protocol_version(version: Message) -> anyhow::Result<u32> {
+fn determine_protocol_version(version: &Message) -> anyhow::Result<u32> {
     let Ok(text) = version.as_text() else {
         anyhow::bail!("initial message wasn't a text message: {version:?}");
     };

@@ -9,7 +9,7 @@ use tokio_websockets::{Message, WebsocketStream};
 use tracing::info;
 use watchdog::{Reset, Watchdog};
 
-pub async fn handle_consumer<S>(
+pub async fn run<S>(
     mut chords_receiver: broadcast::Receiver<ConsumerMessage>,
     mut stream: WebsocketStream<S>,
     pingpong: bool,
@@ -26,7 +26,7 @@ where
             }
             item = stream.next() => {
                 match item {
-                    Some(Ok(msg)) => {
+                    Some(Ok(ref msg)) => {
                         let response = handle_message(msg)?;
                         resetter.send(Reset::Signal).await?;
                         stream.send(response.to_message()).await?;
@@ -53,8 +53,11 @@ where
     Ok(())
 }
 
-fn handle_message(msg: Message) -> anyhow::Result<ConsumerMessage> {
-    if let Ok(Ok(ConsumerMessage::Ping)) = msg.as_text().map(serde_json::from_str) {
+fn handle_message(msg: &Message) -> anyhow::Result<ConsumerMessage> {
+    if matches!(
+        msg.as_text().map(serde_json::from_str),
+        Ok(Ok(ConsumerMessage::Ping))
+    ) {
         info!("Sending Pong");
         Ok(ConsumerMessage::Pong)
     } else {
