@@ -66,7 +66,7 @@ async fn main() -> anyhow::Result<()> {
         .path_and_query("/")
         .build()?;
 
-    let mut client = if args.secure {
+    let mut stream = if args.secure {
         let connector = native_tls::TlsConnector::builder().build()?;
         let connector = tokio_websockets::Connector::NativeTls(connector.into());
 
@@ -78,12 +78,17 @@ async fn main() -> anyhow::Result<()> {
         ClientBuilder::from_uri(uri).connect().await?
     };
 
+    let version = ConsumerMessage::Protocol {
+        version: morivar::PROTOCOL_VERSION,
+    };
+    stream.send(version.to_message()).await?;
+
     let announce = ConsumerMessage::IAmConsumer { id: args.id };
-    client.send(announce.to_message()).await?;
+    stream.send(announce.to_message()).await?;
 
     let mut handle = None;
     loop {
-        let next = client.next().await;
+        let next = stream.next().await;
         if let Some(Ok(msg)) = next {
             if let Ok(text) = msg.as_text() {
                 match serde_json::from_str(text) {
@@ -118,6 +123,6 @@ async fn main() -> anyhow::Result<()> {
         }
     }
 
-    client.close(None, None).await?;
+    stream.close(None, None).await?;
     Ok(())
 }

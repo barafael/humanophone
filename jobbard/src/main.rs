@@ -75,7 +75,7 @@ async fn main() -> anyhow::Result<()> {
         .path_and_query("/")
         .build()?;
 
-    let mut client = if args.secure {
+    let mut stream = if args.secure {
         let connector = native_tls::TlsConnector::builder().build()?;
         let connector = tokio_websockets::Connector::NativeTls(connector.into());
 
@@ -87,21 +87,26 @@ async fn main() -> anyhow::Result<()> {
         ClientBuilder::from_uri(uri).connect().await?
     };
 
+    let version = PublisherMessage::Protocol {
+        version: morivar::PROTOCOL_VERSION,
+    };
+    stream.send(version.to_message()).await?;
+
     let announce = PublisherMessage::IAmPublisher { id: args.id };
-    client.send(announce.to_message()).await?;
+    stream.send(announce.to_message()).await?;
 
     for chord in song {
         info!("Sending chord {chord}");
-        client
+        stream
             .send(PublisherMessage::PublishChord(chord.clone()).to_message())
             .await?;
         tokio::time::sleep(interval.into()).await;
         tokio::time::sleep(Duration::from_millis(500)).await;
-        client.send(PublisherMessage::Silence.to_message()).await?;
+        stream.send(PublisherMessage::Silence.to_message()).await?;
     }
 
-    client.send(PublisherMessage::Silence.to_message()).await?;
-    client
+    stream.send(PublisherMessage::Silence.to_message()).await?;
+    stream
         .close(None, None)
         .await
         .context("Failed to close websocket client")

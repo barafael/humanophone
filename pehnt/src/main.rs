@@ -40,6 +40,11 @@ async fn main() -> anyhow::Result<()> {
         ClientBuilder::from_uri(uri).connect().await?
     };
 
+    let version = ConsumerMessage::Protocol {
+        version: morivar::PROTOCOL_VERSION,
+    };
+    stream.send(version.to_message()).await?;
+
     let announce = ConsumerMessage::IAmConsumer { id: args.id };
     stream.send(announce.to_message()).await?;
 
