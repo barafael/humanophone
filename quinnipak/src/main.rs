@@ -1,43 +1,13 @@
-#![doc = include_str!("../README.md")]
-
-use std::{net::SocketAddr, sync::Arc};
+use std::sync::Arc;
 
 use anyhow::Context;
 use clap::Parser;
-use morivar::{ConsumerMessage, PublisherMessage, PROTOCOL_VERSION};
-use secure::{load_certs, load_keys, SecurityMode};
-use tokio::{
-    io::{AsyncRead, AsyncWrite},
-    net::TcpListener,
-    sync::broadcast,
-};
+use quinnipak::handle_connection;
+use quinnipak::secure::{load_certs, load_keys};
+use quinnipak::{cli::Arguments, secure::SecurityMode};
+use tokio::{net::TcpListener, sync::broadcast};
 use tokio_rustls::TlsAcceptor;
-use tokio_websockets::{Message, ServerBuilder, WebsocketStream};
-use tracing::{info, warn};
-
-mod consumer;
-mod publisher;
-mod secure;
-
-#[derive(Debug, Parser)]
-#[command(author, version)]
-struct Arguments {
-    /// The address to bind on
-    #[arg(short, long, default_value = "0.0.0.0:8000")]
-    address: SocketAddr,
-
-    /// The security mode
-    #[command(subcommand)]
-    mode: Option<SecurityMode>,
-
-    /// The channel size for the chord broadcast
-    #[arg(long, default_value_t = 64)]
-    chords_channel_size: usize,
-
-    /// Whether to monitor consumers for pings
-    #[arg(long, default_value_t = false)]
-    pingpong: bool,
-}
+use tracing::warn;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -49,18 +19,19 @@ async fn main() -> anyhow::Result<()> {
 
     let listener = TcpListener::bind(args.address).await?;
 
-    let acceptor = if let Some(SecurityMode::Secure { cert, key }) = args.mode {
-        let certs = load_certs(cert)?;
-        let mut keys = load_keys(key)?;
+    let acceptor = match args.mode {
+        None => None,
+        Some(SecurityMode::Secure { cert, key }) => {
+            let certs = load_certs(cert)?;
+            let mut keys = load_keys(key)?;
 
-        let config = rustls::ServerConfig::builder()
-            .with_safe_defaults()
-            .with_no_client_auth()
-            .with_single_cert(certs, keys.remove(0))
-            .map_err(|err| std::io::Error::new(std::io::ErrorKind::InvalidInput, err))?;
-        Some(TlsAcceptor::from(Arc::new(config)))
-    } else {
-        None
+            let config = rustls::ServerConfig::builder()
+                .with_safe_defaults()
+                .with_no_client_auth()
+                .with_single_cert(certs, keys.remove(0))
+                .context("Create server config")?;
+            Some(TlsAcceptor::from(Arc::new(config)))
+        }
     };
 
     while let Ok((stream, _)) = listener.accept().await {
@@ -74,84 +45,4 @@ async fn main() -> anyhow::Result<()> {
         });
     }
     Ok(())
-}
-
-async fn handle_connection(
-    stream: tokio::net::TcpStream,
-    chords_tx: broadcast::Sender<ConsumerMessage>,
-    acceptor: Option<TlsAcceptor>,
-    pingpong: bool,
-) -> anyhow::Result<()> {
-    if let Some(acceptor) = acceptor {
-        let stream = acceptor.accept(stream).await?;
-        // The type of `wss` is `WebsocketStream<TlsStream<TcpStream>>`
-        let wss = ServerBuilder::new()
-            .accept(stream)
-            .await
-            .context("Failed to accept secured websocket client")?;
-
-        handle_client(wss, chords_tx, pingpong).await?;
-    } else {
-        // The type of `ws` is `WebsocketStream<TcpStream>`
-        let ws = ServerBuilder::new()
-            .accept(stream)
-            .await
-            .context("Failed to accept websocket client")?;
-        handle_client(ws, chords_tx, pingpong).await?;
-    }
-    anyhow::Ok(())
-}
-
-async fn handle_client<S>(
-    mut stream: WebsocketStream<S>,
-    chords_sender: broadcast::Sender<ConsumerMessage>,
-    pingpong: bool,
-) -> anyhow::Result<()>
-where
-    S: AsyncRead + AsyncWrite + Unpin,
-{
-    // Receive protocol version message from client
-    let Some(Ok(version)) = stream.next().await else {
-        anyhow::bail!("Failed to get protocol version message");
-    };
-
-    let version = determine_protocol_version(&version).context("Protocol error")?;
-
-    anyhow::ensure!(version == PROTOCOL_VERSION, "Protocol version mismatch");
-
-    // Receive identification message from client
-    let Some(Ok(identification)) = stream.next().await else {
-        anyhow::bail!("Failed to ID");
-    };
-
-    if let Ok(text) = identification.as_text() {
-        if let Ok(PublisherMessage::IAmPublisher { id }) = serde_json::from_str(text) {
-            info!("Identified \"{id}\" as publisher");
-            publisher::run(chords_sender, stream, pingpong).await?;
-        } else if let Ok(ConsumerMessage::IAmConsumer { id }) = serde_json::from_str(text) {
-            info!("Identified \"{id}\" as consumer");
-            let chords_rx = chords_sender.subscribe();
-            consumer::run(chords_rx, stream, pingpong).await?;
-        } else {
-            anyhow::bail!("Protocol error, client identification failed: {text}");
-        }
-    } else {
-        anyhow::bail!("Protocol error, second message wasn't a text message: {identification:?}");
-    };
-    Ok(())
-}
-
-fn determine_protocol_version(version: &Message) -> anyhow::Result<u32> {
-    let Ok(text) = version.as_text() else {
-        anyhow::bail!("initial message wasn't a text message: {version:?}");
-    };
-    if let Ok(PublisherMessage::Protocol { version }) = serde_json::from_str(text) {
-        info!("Publisher client with protocol version {version}");
-        Ok(version)
-    } else if let Ok(ConsumerMessage::Protocol { version }) = serde_json::from_str(text) {
-        info!("Consumer client with protocol version {version}");
-        Ok(version)
-    } else {
-        anyhow::bail!("version decoding failed: {text}");
-    }
 }
