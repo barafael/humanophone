@@ -79,6 +79,7 @@ where
         .send(Signal::Stop)
         .await
         .expect("It's the first message");
+
     loop {
         select! {
             msg = stream.next() => {

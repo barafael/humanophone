@@ -2,10 +2,21 @@ use anyhow::Context;
 
 use midir::{Ignore, MidiInput};
 use midly::{live::LiveEvent, MidiMessage};
-use tokio::sync::mpsc;
+use tokio::sync::mpsc::{self};
 use tracing::warn;
 
 use std::io::{stdin, stdout, Write};
+
+fn on_midi(event: &[u8]) -> Option<MidiMessage> {
+    let event = LiveEvent::parse(event).unwrap();
+    match event {
+        LiveEvent::Midi { message, .. } => match message {
+            msg @ (MidiMessage::NoteOn { .. } | MidiMessage::NoteOff { .. }) => Some(msg),
+            _ => None,
+        },
+        _ => None,
+    }
+}
 
 /// Forwards note-on and note-off events from the selected midi interface to `midi_tx`.
 pub fn forward(midi_tx: mpsc::Sender<MidiMessage>, index: Option<usize>) -> anyhow::Result<()> {
@@ -77,15 +88,4 @@ pub fn forward(midi_tx: mpsc::Sender<MidiMessage>, index: Option<usize>) -> anyh
     println!("Closing connection");
     conn.close();
     Ok(())
-}
-
-fn on_midi(event: &[u8]) -> Option<MidiMessage> {
-    let event = LiveEvent::parse(event).unwrap();
-    match event {
-        LiveEvent::Midi { message, .. } => match message {
-            msg @ (MidiMessage::NoteOn { .. } | MidiMessage::NoteOff { .. }) => Some(msg),
-            _ => None,
-        },
-        _ => None,
-    }
 }

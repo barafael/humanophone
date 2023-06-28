@@ -22,6 +22,7 @@ dependencies = [
  "tokio-websockets",
  "tracing",
  "tracing-subscriber",
+ "watchdog",
 ]
 
 [[package]]
@@ -1125,6 +1126,7 @@ dependencies = [
  "tokio-websockets",
  "tracing",
  "tracing-subscriber",
+ "watchdog",
 ]
 
 [[package]]

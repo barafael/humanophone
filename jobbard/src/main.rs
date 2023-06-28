@@ -12,9 +12,14 @@ use klib::core::{
     note,
 };
 use morivar::PublisherMessage;
+use tokio::{
+    io::{AsyncRead, AsyncWrite},
+    select,
+};
 use tokio_native_tls::native_tls;
-use tokio_websockets::ClientBuilder;
-use tracing::info;
+use tokio_websockets::{ClientBuilder, WebsocketStream};
+use tracing::{info, warn};
+use watchdog::{Expired, Signal, Watchdog};
 
 #[derive(Debug, Parser)]
 #[command(author, version)]
@@ -75,37 +80,82 @@ async fn main() -> anyhow::Result<()> {
         .path_and_query("/")
         .build()?;
 
-    let mut stream = if args.secure {
-        let connector = native_tls::TlsConnector::builder().build()?;
-        let connector = tokio_websockets::Connector::NativeTls(connector.into());
+    loop {
+        info!("Attempting to connect to server");
+        let stream = if args.secure {
+            let connector = native_tls::TlsConnector::builder().build()?;
+            let connector = tokio_websockets::Connector::NativeTls(connector.into());
 
-        ClientBuilder::from_uri(uri)
-            .connector(&connector)
-            .connect()
-            .await?
-    } else {
-        ClientBuilder::from_uri(uri).connect().await?
-    };
+            ClientBuilder::from_uri(uri.clone())
+                .connector(&connector)
+                .connect()
+                .await?
+        } else {
+            ClientBuilder::from_uri(uri.clone()).connect().await?
+        };
 
+        if let Err(e) =
+            handle_connection(stream, &args.id, args.pingpong, &interval, song.clone()).await
+        {
+            warn!("Failed to handle connection: {e:?}");
+            tokio::time::sleep(Duration::from_millis(500)).await;
+        }
+    }
+}
+
+async fn handle_connection<S>(
+    mut stream: WebsocketStream<S>,
+    id: &str,
+    pingpong: bool,
+    interval: &Duration,
+    mut song: impl Iterator<Item = &Chord>,
+) -> anyhow::Result<()>
+where
+    S: AsyncRead + AsyncWrite + Unpin,
+{
     let version = PublisherMessage::ProtocolVersion(morivar::PROTOCOL_VERSION);
     stream.send(version.to_message()).await?;
 
-    let announce = PublisherMessage::IAmPublisher { id: args.id };
+    let announce = PublisherMessage::IAmPublisher { id: id.to_string() };
     stream.send(announce.to_message()).await?;
 
-    for chord in song {
-        info!("Sending chord {chord}");
-        stream
-            .send(PublisherMessage::PublishChord(chord.clone()).to_message())
-            .await?;
-        tokio::time::sleep(interval.into()).await;
-        tokio::time::sleep(Duration::from_millis(500)).await;
-        stream.send(PublisherMessage::Silence.to_message()).await?;
-    }
+    let mut chord_interval = tokio::time::interval(*interval + Duration::from_millis(500));
+
+    let mut interval = tokio::time::interval(morivar::PING_INTERVAL);
+
+    let (watchdog, mut expiration) =
+        Watchdog::with_timeout(morivar::PING_TO_PONG_ALLOWED_DELAY).run();
+    watchdog
+        .send(Signal::Stop)
+        .await
+        .expect("It's the first message");
+
+    let error = loop {
+        select! {
+            _p = chord_interval.tick() => {
+                let chord = song.next().unwrap();
+                info!("Sending chord {chord}");
+                stream
+                    .send(PublisherMessage::PublishChord(chord.clone()).to_message())
+                    .await?;
+                stream.send(PublisherMessage::Silence.to_message()).await?;
+            }
+            _i = interval.tick(), if pingpong => {
+                info!("Sending Ping!");
+                watchdog.send(Signal::Reset).await?;
+                stream.send(PublisherMessage::Ping.to_message()).await?;
+            }
+            e = &mut expiration, if pingpong => {
+                let Expired = e.context("Failed to monitor watchdog")?;
+                break anyhow::anyhow!("Server failed to pong");
+            }
+        }
+    };
 
     stream.send(PublisherMessage::Silence.to_message()).await?;
     stream
         .close(None, None)
         .await
-        .context("Failed to close websocket client")
+        .context("Failed to close websocket client")?;
+    Err(error)
 }
