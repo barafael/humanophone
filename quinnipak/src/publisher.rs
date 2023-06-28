@@ -1,3 +1,4 @@
+use anyhow::Context;
 use morivar::{ConsumerMessage, PublisherMessage};
 
 use either::{Either as Response, Left as Forward, Right as ReturnToSender};
@@ -10,7 +11,7 @@ use tokio::{
 };
 use tokio_websockets::{Message, WebsocketStream};
 use tracing::{info, warn};
-use watchdog::{Reset, Watchdog};
+use watchdog::{Expired, Signal, Watchdog};
 
 pub async fn run<S>(
     chords_sender: broadcast::Sender<ConsumerMessage>,
@@ -20,13 +21,13 @@ pub async fn run<S>(
 where
     S: AsyncRead + AsyncWrite + Unpin,
 {
-    let (resetter, mut expired) = Watchdog::with_timeout(morivar::PING_AWAIT_INTERVAL).spawn();
+    let (watchdog, mut expired) = Watchdog::with_timeout(morivar::PING_AWAIT_INTERVAL).run();
     loop {
         select! {
             msg = stream.next() => {
                 match msg {
                     Some(Ok(ref msg)) => {
-                        resetter.send(Reset::Signal).await?;
+                        watchdog.send(Signal::Reset).await?;
                         match handle_message(msg) {
                             Forward(consumer_message) => {
                                 if let Err(c) = chords_sender.send(consumer_message) {
@@ -48,46 +49,41 @@ where
                 }
             },
             e = &mut expired, if pingpong => {
-                match e {
-                    Ok(_expired) => {
-                        anyhow::bail!("Publisher failed to ping")
-                    }
-                    Err(e) => anyhow::bail!("Failed to monitor watchdog: {e:?}")
-                }
+                let Expired = e.context("Failed to monitor watchdog")?;
+                anyhow::bail!("Publisher failed to ping");
             }
         }
     }
 }
 
 fn handle_message(msg: &Message) -> Response<ConsumerMessage, PublisherMessage> {
-    if let Ok(text) = msg.as_text() {
-        match serde_json::from_str(text) {
-            Ok(PublisherMessage::PublishChord(chord)) => {
-                info!("{:?}", chord);
-                Forward(ConsumerMessage::ChordEvent(chord))
-            }
-            Ok(PublisherMessage::PublishPitches(pitches)) => {
-                info!("Pitches: {:?}", pitches);
-                Forward(ConsumerMessage::PitchesEvent(pitches))
-            }
-            Ok(PublisherMessage::Silence) => Forward(ConsumerMessage::Silence),
-            Ok(PublisherMessage::Ping) => ReturnToSender(PublisherMessage::Pong),
-            Ok(PublisherMessage::IAmPublisher { id }) => {
-                warn!("Publisher identified repeatedly, this time with {id}");
-                ReturnToSender(PublisherMessage::NowAreYou)
-            }
-            Ok(m) => {
-                let msg = format!("Invalid publisher message {m:?}");
-                warn!(msg);
-                ReturnToSender(PublisherMessage::InvalidMessage(msg))
-            }
-            Err(e) => ReturnToSender(PublisherMessage::InvalidMessage(format!(
-                "Deserialization failed: {e:?}"
-            ))),
-        }
-    } else {
-        ReturnToSender(PublisherMessage::InvalidMessage(
+    let Ok(text) = msg.as_text() else {
+        return ReturnToSender(PublisherMessage::InvalidMessage(
             "Only text messages allowed".into(),
         ))
+    };
+    match serde_json::from_str(text) {
+        Ok(PublisherMessage::PublishChord(chord)) => {
+            info!("{chord:?}");
+            Forward(ConsumerMessage::ChordEvent(chord))
+        }
+        Ok(PublisherMessage::PublishPitches(pitches)) => {
+            info!("Pitches: {pitches:?}");
+            Forward(ConsumerMessage::PitchesEvent(pitches))
+        }
+        Ok(PublisherMessage::Silence) => Forward(ConsumerMessage::Silence),
+        Ok(PublisherMessage::Ping) => ReturnToSender(PublisherMessage::Pong),
+        Ok(PublisherMessage::IAmPublisher { id }) => {
+            warn!("Publisher identified repeatedly, this time with {id}");
+            ReturnToSender(PublisherMessage::NowAreYou)
+        }
+        Ok(m) => {
+            let msg = format!("Invalid publisher message {m:?}");
+            warn!(msg);
+            ReturnToSender(PublisherMessage::InvalidMessage(msg))
+        }
+        e => ReturnToSender(PublisherMessage::InvalidMessage(format!(
+            "Deserialization failed: {e:?}"
+        ))),
     }
 }

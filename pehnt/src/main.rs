@@ -1,13 +1,19 @@
 #![doc = include_str!("../README.md")]
 
+use std::time::Duration;
+
+use anyhow::Context;
 use clap::{command, Parser};
 use futures_util::SinkExt;
 use http::Uri;
 use morivar::ConsumerMessage;
-use tokio::select;
-use tokio_websockets::ClientBuilder;
+use tokio::{
+    io::{AsyncRead, AsyncWrite},
+    select,
+};
+use tokio_websockets::{ClientBuilder, WebsocketStream};
 use tracing::{info, warn};
-use watchdog::{Reset, Watchdog};
+use watchdog::{Expired, Signal, Watchdog};
 
 #[derive(Debug, Parser)]
 #[command(author, version)]
@@ -28,78 +34,103 @@ async fn main() -> anyhow::Result<()> {
         .path_and_query("")
         .build()?;
 
-    let mut stream = if args.secure {
-        let connector = native_tls::TlsConnector::builder().build()?;
-        let connector = tokio_websockets::Connector::NativeTls(connector.into());
+    loop {
+        info!("Attempting to connect to server");
+        let stream = if args.secure {
+            let connector = native_tls::TlsConnector::builder().build()?;
+            let connector = tokio_websockets::Connector::NativeTls(connector.into());
 
-        ClientBuilder::from_uri(uri)
-            .connector(&connector)
-            .connect()
-            .await?
-    } else {
-        ClientBuilder::from_uri(uri).connect().await?
-    };
+            ClientBuilder::from_uri(uri.clone())
+                .connector(&connector)
+                .connect()
+                .await?
+        } else {
+            ClientBuilder::from_uri(uri.clone()).connect().await?
+        };
 
-    let version = ConsumerMessage::Protocol {
-        version: morivar::PROTOCOL_VERSION,
-    };
+        if let Err(e) = handle_connection(stream, &args.id, args.pingpong).await {
+            warn!("Failed to handle connection: {e:?}");
+            tokio::time::sleep(Duration::from_millis(500)).await;
+        }
+    }
+}
+
+async fn handle_connection<S>(
+    mut stream: WebsocketStream<S>,
+    id: &str,
+    pingpong: bool,
+) -> anyhow::Result<()>
+where
+    S: AsyncRead + AsyncWrite + Unpin,
+{
+    info!("Announcing protocol version");
+    let version = ConsumerMessage::ProtocolVersion(morivar::PROTOCOL_VERSION);
     stream.send(version.to_message()).await?;
 
-    let announce = ConsumerMessage::IAmConsumer { id: args.id };
+    info!("Announcing as consumer");
+    let announce = ConsumerMessage::IAmConsumer { id: id.to_string() };
     stream.send(announce.to_message()).await?;
 
     let mut interval = tokio::time::interval(morivar::PING_INTERVAL);
 
-    let (resetter, mut expired) =
-        Watchdog::with_timeout(morivar::PING_TO_PONG_ALLOWED_DELAY).spawn();
+    let (watchdog, mut expiration) =
+        Watchdog::with_timeout(morivar::PING_TO_PONG_ALLOWED_DELAY).run();
+    watchdog
+        .send(Signal::Stop)
+        .await
+        .expect("It's the first message");
     loop {
         select! {
-            next = stream.next() => {
-                if let Some(Ok(msg)) = next {
-                    if let Ok(text) = msg.as_text() {
-                        match serde_json::from_str(text) {
-                            Ok(ConsumerMessage::ChordEvent(chord)) => {
-                                info!("Chord: {chord}");
-                            }
-                            Ok(ConsumerMessage::PitchesEvent(pitches)) => {
-                                info!("Pitches: {pitches:?}");
-                            }
-                            Ok(ConsumerMessage::Silence) => {
-                                info!("SILENCE!!!");
-                            }
-                            Ok(ConsumerMessage::Pong) => {
-                                resetter.send(Reset::Stop).await?;
-                                info!("Received Pong!");
-                            }
-                            m => {
-                                warn!("Unhandled consumer message: {m:?}");
-                            }
-                        }
-                    } else {
-                        warn!("Stopping receive");
-                        break;
-                    }
-                } else {
-                    warn!("Breaking on client message: {next:?}");
+            msg = stream.next() => {
+                let Some(Ok(msg)) = msg else {
+                    warn!("Breaking on client message: {msg:?}");
                     break;
+                };
+                let Ok(text) = msg.as_text() else {
+                    warn!("Received non-text message, stopping receive");
+                    break;
+                };
+                if pingpong {
+                    // on any message, even non-pong, stop the watchdog - the server is alive at least.
+                    watchdog.send(Signal::Stop).await.context("Failed to reset the watchdog")?;
                 }
+                handle_message(text);
             }
-            _i = interval.tick(), if args.pingpong => {
+            _i = interval.tick(), if pingpong => {
                 info!("Sending Ping!");
-                resetter.send(Reset::Start).await?;
+                watchdog.send(Signal::Reset).await?;
                 stream.send(ConsumerMessage::Ping.to_message()).await?;
             }
-            e = &mut expired, if args.pingpong => {
-                match e {
-                    Ok(_expired) => {
-                        anyhow::bail!("Server failed to pong")
-                    }
-                    Err(e) => anyhow::bail!("Failed to monitor watchdog: {e:?}")
-                }
+            e = &mut expiration, if pingpong => {
+                let Expired = e.context("Failed to monitor watchdog")?;
+                anyhow::bail!("Server failed to pong");
             }
         }
     }
 
     stream.close(None, None).await?;
     Ok(())
+}
+
+fn handle_message(text: &str) {
+    match serde_json::from_str(text) {
+        Ok(ConsumerMessage::ChordEvent(chord)) => {
+            info!("Chord: {chord}");
+        }
+        Ok(ConsumerMessage::PitchesEvent(pitches)) => {
+            info!("Pitches: {pitches:?}");
+        }
+        Ok(ConsumerMessage::Silence) => {
+            info!("SILENCE!!!");
+        }
+        Ok(ConsumerMessage::Pong) => {
+            info!("Received Pong!");
+        }
+        Ok(m) => {
+            warn!("Unhandled consumer message: {m:?}");
+        }
+        Err(e) => {
+            warn!("Protocol error, expected ConsumerMessage: {e:?}");
+        }
+    }
 }

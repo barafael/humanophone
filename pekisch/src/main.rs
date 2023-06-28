@@ -18,7 +18,7 @@ use tokio_native_tls::native_tls;
 use tokio_websockets::ClientBuilder;
 use tracing::{info, warn};
 
-use crate::midi::harvest_midi_events;
+use crate::midi::forward;
 
 mod midi;
 
@@ -48,9 +48,8 @@ async fn main() -> anyhow::Result<()> {
 
     let (midi_tx, mut midi_rx) = mpsc::channel(midi_event_queue_length);
 
-    let midi_events = spawn_blocking(move || {
-        harvest_midi_events(midi_tx.clone(), device).context("Failed to harvest MIDI")
-    });
+    let midi_events =
+        spawn_blocking(move || forward(midi_tx.clone(), device).context("Failed to harvest MIDI"));
 
     let uri = Uri::builder()
         .scheme(if args.secure { "wss" } else { "ws" })
@@ -70,9 +69,7 @@ async fn main() -> anyhow::Result<()> {
         ClientBuilder::from_uri(uri).connect().await?
     };
 
-    let version = PublisherMessage::Protocol {
-        version: morivar::PROTOCOL_VERSION,
-    };
+    let version = PublisherMessage::ProtocolVersion(morivar::PROTOCOL_VERSION);
     stream.send(version.to_message()).await?;
 
     let announce = PublisherMessage::IAmPublisher { id: args.id };

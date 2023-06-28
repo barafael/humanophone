@@ -7,7 +7,7 @@ use tokio::{
 };
 use tokio_websockets::{Message, WebsocketStream};
 use tracing::info;
-use watchdog::{Reset, Watchdog};
+use watchdog::{Expired, Signal, Watchdog};
 
 pub async fn run<S>(
     mut chords_receiver: broadcast::Receiver<ConsumerMessage>,
@@ -17,7 +17,7 @@ pub async fn run<S>(
 where
     S: AsyncRead + AsyncWrite + Unpin,
 {
-    let (resetter, mut expired) = Watchdog::with_timeout(morivar::PING_AWAIT_INTERVAL).spawn();
+    let (watchdog, mut expired) = Watchdog::with_timeout(morivar::PING_AWAIT_INTERVAL).run();
     loop {
         tokio::select! {
             event = chords_receiver.recv() => {
@@ -27,12 +27,12 @@ where
             item = stream.next() => {
                 match item {
                     Some(Ok(ref msg)) => {
-                        let response = handle_message(msg)?;
-                        resetter.send(Reset::Signal).await?;
+                        let response = handle_consumer_message(msg)?;
+                        watchdog.send(Signal::Reset).await?;
                         stream.send(response.to_message()).await?;
                     }
-                    Some(Err(e)) => {
-                        anyhow::bail!("Error on websocket client connection: {e:?}")
+                    Some(e) => {
+                        e.context("Error on websocket client connection")?;
                     }
                     None => {
                         info!("Stream ended!");
@@ -41,19 +41,15 @@ where
                 }
             }
             e = &mut expired, if pingpong => {
-                match e {
-                    Ok(_expired) => {
-                        anyhow::bail!("Consumer failed to ping")
-                    }
-                    Err(e) => anyhow::bail!("Failed to monitor watchdog: {e:?}")
-                }
+                let Expired = e.context("Failed to monitor watchdog")?;
+                anyhow::bail!("Consumer failed to ping");
             }
         }
     }
     Ok(())
 }
 
-fn handle_message(msg: &Message) -> anyhow::Result<ConsumerMessage> {
+fn handle_consumer_message(msg: &Message) -> anyhow::Result<ConsumerMessage> {
     if matches!(
         msg.as_text().map(serde_json::from_str),
         Ok(Ok(ConsumerMessage::Ping))
@@ -62,6 +58,6 @@ fn handle_message(msg: &Message) -> anyhow::Result<ConsumerMessage> {
         Ok(ConsumerMessage::Pong)
     } else {
         // TODO limit message length perhaps.
-        anyhow::bail!("Invalid consumer message: {msg:?}");
+        anyhow::bail!("Expected ConsumerMessage::Ping, got: {msg:?}");
     }
 }

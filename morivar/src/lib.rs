@@ -20,8 +20,11 @@ pub const PROTOCOL_VERSION: u32 = 1;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum PublisherMessage {
-    IAmPublisher { id: String },
-    Protocol { version: u32 },
+    IAmPublisher {
+        id: String,
+    },
+    #[serde(rename = "PublisherProtocolVersion")]
+    ProtocolVersion(u32),
     PublishChord(Chord),
     PublishPitches(HashSet<Note>),
     Silence,
@@ -42,8 +45,11 @@ impl PublisherMessage {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum ConsumerMessage {
-    IAmConsumer { id: String },
-    Protocol { version: u32 },
+    IAmConsumer {
+        id: String,
+    },
+    #[serde(rename = "ConsumerProtocolVersion")]
+    ProtocolVersion(u32),
     ChordEvent(Chord),
     PitchesEvent(HashSet<Note>),
     Silence,

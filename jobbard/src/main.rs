@@ -87,9 +87,7 @@ async fn main() -> anyhow::Result<()> {
         ClientBuilder::from_uri(uri).connect().await?
     };
 
-    let version = PublisherMessage::Protocol {
-        version: morivar::PROTOCOL_VERSION,
-    };
+    let version = PublisherMessage::ProtocolVersion(morivar::PROTOCOL_VERSION);
     stream.send(version.to_message()).await?;
 
     let announce = PublisherMessage::IAmPublisher { id: args.id };

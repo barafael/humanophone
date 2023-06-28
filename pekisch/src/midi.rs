@@ -7,11 +7,9 @@ use tracing::warn;
 
 use std::io::{stdin, stdout, Write};
 
-pub fn harvest_midi_events(
-    midi_tx: mpsc::Sender<MidiMessage>,
-    index: Option<usize>,
-) -> anyhow::Result<()> {
-    let mut midi_in = MidiInput::new("midir reading input")?;
+/// Forwards note-on and note-off events from the selected midi interface to `midi_tx`.
+pub fn forward(midi_tx: mpsc::Sender<MidiMessage>, index: Option<usize>) -> anyhow::Result<()> {
+    let mut midi_in = MidiInput::new("pekisch reading input")?;
     midi_in.ignore(Ignore::None);
 
     // Get an input port (read from console if multiple are available)
@@ -62,7 +60,7 @@ pub fn harvest_midi_events(
             move |_stamp, message, _| {
                 let Some(msg) = on_midi(message) else { return };
                 if let Err(e) = midi_tx.blocking_send(msg) {
-                    warn!("Failed to forward midi message: {e}");
+                    warn!("Failed to forward midi message: {:?}", e.0);
                 }
             },
             (),

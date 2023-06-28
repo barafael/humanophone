@@ -7,7 +7,7 @@ use quinnipak::secure::{load_certs, load_keys};
 use quinnipak::{cli::Arguments, secure::SecurityMode};
 use tokio::{net::TcpListener, sync::broadcast};
 use tokio_rustls::TlsAcceptor;
-use tracing::warn;
+use tracing::{info, warn};
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -17,11 +17,13 @@ async fn main() -> anyhow::Result<()> {
 
     let (chords_tx, _) = broadcast::channel(args.chords_channel_size);
 
+    info!("Listening on {:?}", args.address);
     let listener = TcpListener::bind(args.address).await?;
 
     let acceptor = match args.mode {
         None => None,
         Some(SecurityMode::Secure { cert, key }) => {
+            info!("Loading certificates and keys");
             let certs = load_certs(cert)?;
             let mut keys = load_keys(key)?;
 
