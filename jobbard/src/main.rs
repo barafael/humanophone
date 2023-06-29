@@ -1,8 +1,9 @@
+#![feature(never_type)]
 #![doc = include_str!("../README.md")]
 
 use std::{fs::File, io::BufReader, path::PathBuf, time::Duration};
 
-use anyhow::{Context, Ok};
+use anyhow::Context;
 use clap::{command, Parser};
 use futures_util::SinkExt;
 use http::Uri;
@@ -11,7 +12,7 @@ use klib::core::{
     modifier::{Degree, Extension, Modifier},
     note,
 };
-use morivar::{PublisherToServer, ToMessage};
+use morivar::{PublisherToServer, ServerToPublisher, ToMessage};
 use tokio::{
     io::{AsyncRead, AsyncWrite},
     select,
@@ -82,7 +83,7 @@ async fn main() -> anyhow::Result<()> {
 
     loop {
         info!("Attempting to connect to server");
-        let stream = if args.secure {
+        let mut stream = if args.secure {
             let connector = native_tls::TlsConnector::builder().build()?;
             let connector = tokio_websockets::Connector::NativeTls(connector.into());
 
@@ -94,22 +95,35 @@ async fn main() -> anyhow::Result<()> {
             ClientBuilder::from_uri(uri.clone()).connect().await?
         };
 
-        if let Err(e) =
-            handle_connection(stream, &args.id, args.pingpong, &interval, song.clone()).await
+        if let Err(e) = handle_connection(
+            &mut stream,
+            &args.id,
+            args.pingpong,
+            &interval,
+            song.clone(),
+        )
+        .await
         {
+            stream
+                .send(PublisherToServer::PublishSilence.to_message())
+                .await?;
+            stream
+                .close(None, None)
+                .await
+                .context("Failed to close websocket client")?;
             warn!("Failed to handle connection: {e:?}");
-            tokio::time::sleep(Duration::from_millis(500)).await;
+            tokio::time::sleep(morivar::CLIENT_RECONNECT_DURATION).await;
         }
     }
 }
 
 async fn handle_connection<S>(
-    mut stream: WebsocketStream<S>,
+    stream: &mut WebsocketStream<S>,
     id: &str,
     pingpong: bool,
     interval: &Duration,
     mut song: impl Iterator<Item = &Chord>,
-) -> anyhow::Result<()>
+) -> anyhow::Result<!>
 where
     S: AsyncRead + AsyncWrite + Unpin,
 {
@@ -130,8 +144,20 @@ where
         .await
         .expect("It's the first message");
 
-    let error = loop {
+    loop {
         select! {
+            msg = stream.next() => {
+                let Some(Ok(msg)) = msg else {
+                    anyhow::bail!("Error receiving message: {msg:?}");
+                };
+                let Ok(msg) = msg.as_text() else {
+                   anyhow::bail!("Expected text message, got: {msg:?}");
+                };
+                let Ok(ServerToPublisher::Pong) = serde_json::from_str(msg) else {
+                    anyhow::bail!("Expected Pong, got: {msg:?}");
+                };
+                watchdog.send(Signal::Stop).await.context("Failed to stop watchdog")?;
+            }
             _p = chord_interval.tick() => {
                 let chord = song.next().unwrap();
                 info!("Sending chord {chord}");
@@ -147,17 +173,8 @@ where
             }
             e = &mut expiration, if pingpong => {
                 let Expired = e.context("Failed to monitor watchdog")?;
-                break anyhow::anyhow!("Server failed to pong");
+                anyhow::bail!("Server failed to pong");
             }
         }
-    };
-
-    stream
-        .send(PublisherToServer::PublishSilence.to_message())
-        .await?;
-    stream
-        .close(None, None)
-        .await
-        .context("Failed to close websocket client")?;
-    Err(error)
+    }
 }

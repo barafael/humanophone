@@ -22,6 +22,8 @@ pub mod cli;
 
 pub const PROTOCOL_VERSION: u32 = 1;
 
+pub const CLIENT_RECONNECT_DURATION: Duration = Duration::from_millis(500);
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum PublisherToServer {
     IAmPublisher {

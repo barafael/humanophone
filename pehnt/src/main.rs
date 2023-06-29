@@ -1,7 +1,5 @@
 #![doc = include_str!("../README.md")]
 
-use std::time::Duration;
-
 use anyhow::Context;
 use clap::{command, Parser};
 use futures_util::SinkExt;
@@ -50,7 +48,7 @@ async fn main() -> anyhow::Result<()> {
 
         if let Err(e) = handle_connection(stream, &args.id, args.pingpong).await {
             warn!("Failed to handle connection: {e:?}");
-            tokio::time::sleep(Duration::from_millis(500)).await;
+            tokio::time::sleep(morivar::CLIENT_RECONNECT_DURATION).await;
         }
     }
 }
