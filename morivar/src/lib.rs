@@ -6,8 +6,12 @@ use std::{collections::HashSet, time::Duration};
 
 use klib::core::{chord::Chord, note::Note};
 use serde::{Deserialize, Serialize};
+
 #[cfg(feature = "message")]
-use tokio_websockets::Message;
+pub mod to_message;
+
+#[cfg(feature = "message")]
+pub use to_message::ToMessage;
 
 pub const PING_INTERVAL: Duration = Duration::from_secs(10);
 pub const PING_AWAIT_INTERVAL: Duration = Duration::from_secs(15);
@@ -19,7 +23,7 @@ pub mod cli;
 pub const PROTOCOL_VERSION: u32 = 1;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub enum PublisherMessage {
+pub enum PublisherToServer {
     IAmPublisher {
         id: String,
     },
@@ -27,43 +31,33 @@ pub enum PublisherMessage {
     ProtocolVersion(u32),
     PublishChord(Chord),
     PublishPitches(HashSet<Note>),
-    Silence,
-    NowAreYou,
-    InvalidMessage(String),
+    PublishSilence,
     Ping,
-    Pong,
-}
-
-#[cfg(feature = "message")]
-impl PublisherMessage {
-    #[must_use]
-    pub fn to_message(self) -> Message {
-        let message = serde_json::to_string_pretty(&self).expect("Serialization failed");
-        Message::text(message)
-    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub enum ConsumerMessage {
+pub enum ServerToPublisher {
+    Pong,
+    NowAreYou,
+    Error(String),
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum ConsumerToServer {
     IAmConsumer {
         id: String,
     },
     #[serde(rename = "ConsumerProtocolVersion")]
     ProtocolVersion(u32),
+    Ping,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum ServerToConsumer {
     ChordEvent(Chord),
     PitchesEvent(HashSet<Note>),
     Silence,
-    Ping,
     Pong,
-}
-
-#[cfg(feature = "message")]
-impl ConsumerMessage {
-    #[must_use]
-    pub fn to_message(self) -> Message {
-        let message = serde_json::to_string_pretty(&self).expect("Serialization failed");
-        Message::text(message)
-    }
 }
 
 #[cfg(test)]
@@ -74,7 +68,7 @@ mod test {
 
     #[test]
     fn serializes_announce() {
-        let message = ConsumerMessage::IAmConsumer {
+        let message = ConsumerToServer::IAmConsumer {
             id: "Hello there".to_string(),
         };
         dbg!(serde_json::to_string_pretty(&message).unwrap());
@@ -82,7 +76,7 @@ mod test {
 
     #[test]
     fn serializes_piano_announce() {
-        let message = PublisherMessage::IAmPublisher {
+        let message = PublisherToServer::IAmPublisher {
             id: "Hello there".to_string(),
         };
         println!("{}", serde_json::to_string_pretty(&message).unwrap());
@@ -91,7 +85,7 @@ mod test {
     #[test]
     fn serializes_piano_chord() {
         let chord = Chord::new(note::AFlat).sus4().seven().add13();
-        let message = PublisherMessage::PublishChord(chord);
+        let message = PublisherToServer::PublishChord(chord);
         println!("{:?}", serde_json::to_string_pretty(&message).unwrap());
     }
 
@@ -103,7 +97,7 @@ mod test {
         ]
         .into_iter()
         .collect();
-        let message = PublisherMessage::PublishPitches(chord);
+        let message = PublisherToServer::PublishPitches(chord);
         println!("{:?}", serde_json::to_string(&message).unwrap());
     }
 }

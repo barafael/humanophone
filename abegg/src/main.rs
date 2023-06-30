@@ -12,7 +12,7 @@ use klib::core::{
     note::Note,
     octave::Octave,
 };
-use morivar::ConsumerMessage;
+use morivar::{ConsumerToServer, ServerToConsumer, ToMessage};
 use once_cell::sync::Lazy;
 use pitches::Pitches;
 use tokio::{
@@ -107,11 +107,11 @@ where
     S: AsyncRead + AsyncWrite + Unpin,
 {
     info!("Announcing protocol version");
-    let version = ConsumerMessage::ProtocolVersion(morivar::PROTOCOL_VERSION);
+    let version = ConsumerToServer::ProtocolVersion(morivar::PROTOCOL_VERSION);
     stream.send(version.to_message()).await?;
 
     info!("Announcing as consumer");
-    let announce = ConsumerMessage::IAmConsumer { id: id.to_string() };
+    let announce = ConsumerToServer::IAmConsumer { id: id.to_string() };
     stream.send(announce.to_message()).await?;
 
     let mut interval = tokio::time::interval(morivar::PING_INTERVAL);
@@ -123,7 +123,7 @@ where
         .await
         .expect("It's the first message");
 
-    let mut _handle = None;
+    let mut handle = None;
     loop {
         select! {
             msg = stream.next() => {
@@ -142,12 +142,12 @@ where
                 let Ok(new_handle) = handle_message(text) else {
                     break
                 };
-                _handle = new_handle;
+                handle = new_handle;
             }
             _i = interval.tick(), if pingpong => {
                 info!("Sending Ping!");
                 watchdog.send(Signal::Reset).await?;
-                stream.send(ConsumerMessage::Ping.to_message()).await?;
+                stream.send(ConsumerToServer::Ping.to_message()).await?;
             }
             e = &mut expiration, if pingpong => {
                 let Expired = e.context("Failed to monitor watchdog")?;
@@ -155,17 +155,18 @@ where
             }
         }
     }
+    drop(handle);
 
     stream.close(None, None).await?;
     Ok(())
 }
 
 fn handle_message(text: &str) -> anyhow::Result<Option<PlaybackHandle>> {
-    let Ok(msg) = serde_json::from_str::<ConsumerMessage>(text) else {
+    let Ok(msg) = serde_json::from_str::<ServerToConsumer>(text) else {
         anyhow::bail!("Protocol error, expected text message, got {text:?}")
     };
     match msg {
-        ConsumerMessage::ChordEvent(chord) => {
+        ServerToConsumer::ChordEvent(chord) => {
             let ph = chord.play(
                 Duration::ZERO,
                 Duration::from_secs(5),
@@ -173,7 +174,7 @@ fn handle_message(text: &str) -> anyhow::Result<Option<PlaybackHandle>> {
             )?;
             Ok(Some(ph))
         }
-        ConsumerMessage::PitchesEvent(pitches) => {
+        ServerToConsumer::PitchesEvent(pitches) => {
             let ph = Pitches::from(pitches).play(
                 Duration::ZERO,
                 Duration::from_secs(5),
@@ -181,11 +182,6 @@ fn handle_message(text: &str) -> anyhow::Result<Option<PlaybackHandle>> {
             )?;
             Ok(Some(ph))
         }
-        ConsumerMessage::Silence => Ok(None),
-        ConsumerMessage::Pong => Ok(None),
-        msg => {
-            warn!("Unexpected message: {msg:?}");
-            Ok(None)
-        }
+        ServerToConsumer::Silence | ServerToConsumer::Pong => Ok(None),
     }
 }

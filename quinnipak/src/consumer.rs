@@ -1,6 +1,6 @@
 use anyhow::Context;
 use futures_util::SinkExt;
-use morivar::ConsumerMessage;
+use morivar::{ConsumerToServer, ServerToConsumer, ToMessage};
 use tokio::{
     io::{AsyncRead, AsyncWrite},
     sync::broadcast,
@@ -10,7 +10,7 @@ use tracing::info;
 use watchdog::{Expired, Signal, Watchdog};
 
 pub async fn run<S>(
-    mut chords_receiver: broadcast::Receiver<ConsumerMessage>,
+    mut chords_receiver: broadcast::Receiver<ServerToConsumer>,
     mut stream: WebsocketStream<S>,
     pingpong: bool,
 ) -> anyhow::Result<()>
@@ -49,15 +49,15 @@ where
     Ok(())
 }
 
-fn handle_consumer_message(msg: &Message) -> anyhow::Result<ConsumerMessage> {
+fn handle_consumer_message(msg: &Message) -> anyhow::Result<ServerToConsumer> {
     if matches!(
         msg.as_text().map(serde_json::from_str),
-        Ok(Ok(ConsumerMessage::Ping))
+        Ok(Ok(ConsumerToServer::Ping))
     ) {
         info!("Sending Pong");
-        Ok(ConsumerMessage::Pong)
+        Ok(ServerToConsumer::Pong)
     } else {
         // TODO limit message length perhaps.
-        anyhow::bail!("Expected ConsumerMessage::Ping, got: {msg:?}");
+        anyhow::bail!("Expected ConsumerToServer::Ping, got: {msg:?}");
     }
 }

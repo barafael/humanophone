@@ -11,7 +11,7 @@ use klib::core::{
     modifier::{Degree, Extension, Modifier},
     note,
 };
-use morivar::PublisherMessage;
+use morivar::{PublisherToServer, ToMessage};
 use tokio::{
     io::{AsyncRead, AsyncWrite},
     select,
@@ -113,10 +113,10 @@ async fn handle_connection<S>(
 where
     S: AsyncRead + AsyncWrite + Unpin,
 {
-    let version = PublisherMessage::ProtocolVersion(morivar::PROTOCOL_VERSION);
+    let version = PublisherToServer::ProtocolVersion(morivar::PROTOCOL_VERSION);
     stream.send(version.to_message()).await?;
 
-    let announce = PublisherMessage::IAmPublisher { id: id.to_string() };
+    let announce = PublisherToServer::IAmPublisher { id: id.to_string() };
     stream.send(announce.to_message()).await?;
 
     let mut chord_interval = tokio::time::interval(*interval + Duration::from_millis(500));
@@ -136,14 +136,14 @@ where
                 let chord = song.next().unwrap();
                 info!("Sending chord {chord}");
                 stream
-                    .send(PublisherMessage::PublishChord(chord.clone()).to_message())
+                    .send(PublisherToServer::PublishChord(chord.clone()).to_message())
                     .await?;
-                stream.send(PublisherMessage::Silence.to_message()).await?;
+                stream.send(PublisherToServer::PublishSilence.to_message()).await?;
             }
             _i = interval.tick(), if pingpong => {
                 info!("Sending Ping!");
                 watchdog.send(Signal::Reset).await?;
-                stream.send(PublisherMessage::Ping.to_message()).await?;
+                stream.send(PublisherToServer::Ping.to_message()).await?;
             }
             e = &mut expiration, if pingpong => {
                 let Expired = e.context("Failed to monitor watchdog")?;
@@ -152,7 +152,9 @@ where
         }
     };
 
-    stream.send(PublisherMessage::Silence.to_message()).await?;
+    stream
+        .send(PublisherToServer::PublishSilence.to_message())
+        .await?;
     stream
         .close(None, None)
         .await

@@ -4,8 +4,7 @@ use std::time::Duration;
 
 use anyhow::Error;
 use klib::core::base::{HasName, Playable, PlaybackHandle};
-use morivar::ConsumerMessage;
-//use morivar::{ConsumerMessage, PublisherMessage};
+use morivar::{ConsumerToServer, ServerToConsumer};
 
 use yew::{html, Component, Context, Html};
 use yew_websocket::macros::Json;
@@ -34,17 +33,17 @@ impl From<WsAction> for Msg {
 }
 
 /// This type is an expected response from a websocket connection.
-pub type WsResponse = ConsumerMessage;
+pub type WsResponse = ServerToConsumer;
 
 pub struct Model {
-    pub data: Option<ConsumerMessage>,
+    pub data: Option<ServerToConsumer>,
     pub ws: Option<WebSocketTask>,
     pub handle: Option<PlaybackHandle>,
 }
 
 impl Model {
     fn view_data(&self) -> Html {
-        if let Some(ConsumerMessage::ChordEvent(chord)) = &self.data {
+        if let Some(ServerToConsumer::ChordEvent(chord)) = &self.data {
             html!(
                 <p>{ format!("{}", chord.name()) }</p>
             )
@@ -90,7 +89,7 @@ impl Component for Model {
                     true
                 }
                 WsAction::Identify(id) => {
-                    let message = ConsumerMessage::IAmConsumer { id };
+                    let message = ConsumerToServer::IAmConsumer { id };
                     self.ws
                         .as_mut()
                         .unwrap()
@@ -109,7 +108,7 @@ impl Component for Model {
             Msg::WsReady(response) => {
                 tracing::info!("{response:?}");
                 self.data = response.ok();
-                if let Some(ConsumerMessage::ChordEvent(chord)) = &self.data {
+                if let Some(ServerToConsumer::ChordEvent(chord)) = &self.data {
                     let handle = chord
                         .play(
                             Duration::ZERO,

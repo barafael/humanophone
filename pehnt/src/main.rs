@@ -6,7 +6,7 @@ use anyhow::Context;
 use clap::{command, Parser};
 use futures_util::SinkExt;
 use http::Uri;
-use morivar::ConsumerMessage;
+use morivar::{ConsumerToServer, ServerToConsumer, ToMessage};
 use tokio::{
     io::{AsyncRead, AsyncWrite},
     select,
@@ -64,11 +64,11 @@ where
     S: AsyncRead + AsyncWrite + Unpin,
 {
     info!("Announcing protocol version");
-    let version = ConsumerMessage::ProtocolVersion(morivar::PROTOCOL_VERSION);
+    let version = ConsumerToServer::ProtocolVersion(morivar::PROTOCOL_VERSION);
     stream.send(version.to_message()).await?;
 
     info!("Announcing as consumer");
-    let announce = ConsumerMessage::IAmConsumer { id: id.to_string() };
+    let announce = ConsumerToServer::IAmConsumer { id: id.to_string() };
     stream.send(announce.to_message()).await?;
 
     let mut interval = tokio::time::interval(morivar::PING_INTERVAL);
@@ -100,7 +100,7 @@ where
             _i = interval.tick(), if pingpong => {
                 info!("Sending Ping!");
                 watchdog.send(Signal::Reset).await?;
-                stream.send(ConsumerMessage::Ping.to_message()).await?;
+                stream.send(ConsumerToServer::Ping.to_message()).await?;
             }
             e = &mut expiration, if pingpong => {
                 let Expired = e.context("Failed to monitor watchdog")?;
@@ -115,23 +115,20 @@ where
 
 fn handle_message(text: &str) {
     match serde_json::from_str(text) {
-        Ok(ConsumerMessage::ChordEvent(chord)) => {
+        Ok(ServerToConsumer::ChordEvent(chord)) => {
             info!("Chord: {chord}");
         }
-        Ok(ConsumerMessage::PitchesEvent(pitches)) => {
+        Ok(ServerToConsumer::PitchesEvent(pitches)) => {
             info!("Pitches: {pitches:?}");
         }
-        Ok(ConsumerMessage::Silence) => {
+        Ok(ServerToConsumer::Silence) => {
             info!("SILENCE!!!");
         }
-        Ok(ConsumerMessage::Pong) => {
+        Ok(ServerToConsumer::Pong) => {
             info!("Received Pong!");
         }
-        Ok(m) => {
-            warn!("Unhandled consumer message: {m:?}");
-        }
         Err(e) => {
-            warn!("Protocol error, expected ConsumerMessage: {e:?}");
+            warn!("Protocol error, expected ServerToConsumer: {e:?}");
         }
     }
 }

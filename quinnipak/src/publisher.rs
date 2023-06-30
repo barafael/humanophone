@@ -1,5 +1,5 @@
 use anyhow::Context;
-use morivar::{ConsumerMessage, PublisherMessage};
+use morivar::{PublisherToServer, ServerToConsumer, ServerToPublisher, ToMessage};
 
 use either::{Either as Response, Left as Forward, Right as ReturnToSender};
 
@@ -14,7 +14,7 @@ use tracing::{info, warn};
 use watchdog::{Expired, Signal, Watchdog};
 
 pub async fn run<S>(
-    chords_sender: broadcast::Sender<ConsumerMessage>,
+    chords_sender: broadcast::Sender<ServerToConsumer>,
     mut stream: WebsocketStream<S>,
     pingpong: bool,
 ) -> anyhow::Result<()>
@@ -56,33 +56,33 @@ where
     }
 }
 
-fn handle_message(msg: &Message) -> Response<ConsumerMessage, PublisherMessage> {
+fn handle_message(msg: &Message) -> Response<ServerToConsumer, ServerToPublisher> {
     let Ok(text) = msg.as_text() else {
-        return ReturnToSender(PublisherMessage::InvalidMessage(
+        return ReturnToSender(ServerToPublisher::Error(
             "Only text messages allowed".into(),
         ))
     };
     match serde_json::from_str(text) {
-        Ok(PublisherMessage::PublishChord(chord)) => {
+        Ok(PublisherToServer::PublishChord(chord)) => {
             info!("{chord:?}");
-            Forward(ConsumerMessage::ChordEvent(chord))
+            Forward(ServerToConsumer::ChordEvent(chord))
         }
-        Ok(PublisherMessage::PublishPitches(pitches)) => {
+        Ok(PublisherToServer::PublishPitches(pitches)) => {
             info!("Pitches: {pitches:?}");
-            Forward(ConsumerMessage::PitchesEvent(pitches))
+            Forward(ServerToConsumer::PitchesEvent(pitches))
         }
-        Ok(PublisherMessage::Silence) => Forward(ConsumerMessage::Silence),
-        Ok(PublisherMessage::Ping) => ReturnToSender(PublisherMessage::Pong),
-        Ok(PublisherMessage::IAmPublisher { id }) => {
+        Ok(PublisherToServer::PublishSilence) => Forward(ServerToConsumer::Silence),
+        Ok(PublisherToServer::Ping) => ReturnToSender(ServerToPublisher::Pong),
+        Ok(PublisherToServer::IAmPublisher { id }) => {
             warn!("Publisher identified repeatedly, this time with {id}");
-            ReturnToSender(PublisherMessage::NowAreYou)
+            ReturnToSender(ServerToPublisher::NowAreYou)
         }
         Ok(m) => {
             let msg = format!("Invalid publisher message {m:?}");
             warn!(msg);
-            ReturnToSender(PublisherMessage::InvalidMessage(msg))
+            ReturnToSender(ServerToPublisher::Error(msg))
         }
-        e => ReturnToSender(PublisherMessage::InvalidMessage(format!(
+        e => ReturnToSender(ServerToPublisher::Error(format!(
             "Deserialization failed: {e:?}"
         ))),
     }

@@ -1,9 +1,9 @@
 #![doc = include_str!("../README.md")]
 
 use anyhow::Context;
-use morivar::ConsumerMessage;
-use morivar::PublisherMessage;
+use morivar::PublisherToServer;
 use morivar::PROTOCOL_VERSION;
+use morivar::{ConsumerToServer, ServerToConsumer};
 use tokio::io::AsyncRead;
 use tokio::io::AsyncWrite;
 use tokio::sync::broadcast;
@@ -20,7 +20,7 @@ pub mod secure;
 
 pub async fn handle_connection<Stream>(
     stream: Stream,
-    chords_tx: broadcast::Sender<ConsumerMessage>,
+    chords_tx: broadcast::Sender<ServerToConsumer>,
     acceptor: Option<TlsAcceptor>,
     pingpong: bool,
 ) -> anyhow::Result<()>
@@ -50,7 +50,7 @@ where
 
 pub async fn handle_client<T>(
     mut stream: WebsocketStream<T>,
-    chords_sender: broadcast::Sender<ConsumerMessage>,
+    chords_sender: broadcast::Sender<ServerToConsumer>,
     pingpong: bool,
 ) -> anyhow::Result<()>
 where
@@ -71,10 +71,10 @@ where
     let Ok(text) = identification.as_text() else {
         anyhow::bail!("Protocol error, second message wasn't a text message: {identification:?}");
     };
-    if let Ok(PublisherMessage::IAmPublisher { id }) = serde_json::from_str(text) {
+    if let Ok(PublisherToServer::IAmPublisher { id }) = serde_json::from_str(text) {
         info!("Identified \"{id}\" as publisher");
         publisher::run(chords_sender, stream, pingpong).await?;
-    } else if let Ok(ConsumerMessage::IAmConsumer { id }) = serde_json::from_str(text) {
+    } else if let Ok(ConsumerToServer::IAmConsumer { id }) = serde_json::from_str(text) {
         info!("Identified \"{id}\" as consumer");
         let chords_rx = chords_sender.subscribe();
         consumer::run(chords_rx, stream, pingpong).await?;
@@ -88,10 +88,10 @@ fn determine_protocol_version(version: &Message) -> anyhow::Result<u32> {
     let Ok(text) = version.as_text() else {
         anyhow::bail!("initial message wasn't a text message: {version:?}");
     };
-    if let Ok(PublisherMessage::ProtocolVersion(version)) = serde_json::from_str(text) {
+    if let Ok(PublisherToServer::ProtocolVersion(version)) = serde_json::from_str(text) {
         info!("Publisher client with protocol version {version}");
         Ok(version)
-    } else if let Ok(ConsumerMessage::ProtocolVersion(version)) = serde_json::from_str(text) {
+    } else if let Ok(ConsumerToServer::ProtocolVersion(version)) = serde_json::from_str(text) {
         info!("Consumer client with protocol version {version}");
         Ok(version)
     } else {

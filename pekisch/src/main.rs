@@ -11,7 +11,7 @@ use klib::core::{
     note::{HasNoteId, Note},
 };
 use midly::MidiMessage;
-use morivar::PublisherMessage;
+use morivar::{PublisherToServer, ToMessage};
 use tokio::sync::mpsc;
 use tokio::task::spawn_blocking;
 use tokio_native_tls::native_tls;
@@ -69,10 +69,10 @@ async fn main() -> anyhow::Result<()> {
         ClientBuilder::from_uri(uri).connect().await?
     };
 
-    let version = PublisherMessage::ProtocolVersion(morivar::PROTOCOL_VERSION);
+    let version = PublisherToServer::ProtocolVersion(morivar::PROTOCOL_VERSION);
     stream.send(version.to_message()).await?;
 
-    let announce = PublisherMessage::IAmPublisher { id: args.id };
+    let announce = PublisherToServer::IAmPublisher { id: args.id };
     stream.send(announce.to_message()).await?;
 
     let mut notes = HashSet::new();
@@ -102,9 +102,9 @@ async fn main() -> anyhow::Result<()> {
                 .ok()
                 .and_then(|chords| chords.first().cloned())
         {
-            PublisherMessage::PublishChord(chord).to_message()
+            PublisherToServer::PublishChord(chord).to_message()
         } else {
-            PublisherMessage::PublishPitches(notes.clone()).to_message()
+            PublisherToServer::PublishPitches(notes.clone()).to_message()
         };
         stream.send(message).await?;
     }
