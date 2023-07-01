@@ -1,0 +1,15 @@
+[package]
+name = "client_utils"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+anyhow = "1.0.71"
+futures-util = "0.3.28"
+http = "0.2.9"
+morivar = { path = "../morivar", features = ["message"] }
+tokio = { version = "1.29.1", features = ["full"] }
+tokio-native-tls = "0.3.1"
+tokio-websockets = { version = "0.3.3", features = ["client", "native-tls"] }
+tracing = "0.1.37"
+watchdog = { git = "https://github.com/barafael/watchdog.git" }

@@ -78,8 +78,7 @@ pub fn forward(
                     warn!("Failed to forward midi message: {:?}", e.0);
                     let lock = &cond.0;
                     let cvar = &cond.1;
-                    let mut quit = lock.lock().unwrap();
-                    *quit = true;
+                    *lock.lock().unwrap() = true;
                     cvar.notify_one();
                 }
             },

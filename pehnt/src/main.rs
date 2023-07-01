@@ -2,16 +2,18 @@
 
 use anyhow::Context;
 use clap::{command, Parser};
+use client_utils::{
+    announce_as_consumer, announce_protocol_version, create_client, create_uri, create_watchdog,
+};
 use futures_util::SinkExt;
-use http::Uri;
 use morivar::{ConsumerToServer, ServerToConsumer, ToMessage};
 use tokio::{
     io::{AsyncRead, AsyncWrite},
     select,
 };
-use tokio_websockets::{ClientBuilder, WebsocketStream};
+use tokio_websockets::WebsocketStream;
 use tracing::{info, warn};
-use watchdog::{Expired, Signal, Watchdog};
+use watchdog::{Expired, Signal};
 
 #[derive(Debug, Parser)]
 #[command(author, version)]
@@ -26,27 +28,13 @@ async fn main() -> anyhow::Result<()> {
 
     let args = Arguments::parse().args;
 
-    let uri = Uri::builder()
-        .scheme(if args.secure { "wss" } else { "ws" })
-        .authority(args.url)
-        .path_and_query("")
-        .build()?;
+    let uri = create_uri(args.url, args.secure)?;
 
     loop {
         info!("Attempting to connect to server");
-        let stream = if args.secure {
-            let connector = native_tls::TlsConnector::builder().build()?;
-            let connector = tokio_websockets::Connector::NativeTls(connector.into());
+        let mut stream = create_client(&uri, args.secure).await?;
 
-            ClientBuilder::from_uri(uri.clone())
-                .connector(&connector)
-                .connect()
-                .await?
-        } else {
-            ClientBuilder::from_uri(uri.clone()).connect().await?
-        };
-
-        if let Err(e) = handle_connection(stream, &args.id, args.pingpong).await {
+        if let Err(e) = handle_connection(&mut stream, &args.id, args.pingpong).await {
             warn!("Failed to handle connection: {e:?}");
             tokio::time::sleep(morivar::CLIENT_RECONNECT_DURATION).await;
         }
@@ -54,29 +42,18 @@ async fn main() -> anyhow::Result<()> {
 }
 
 async fn handle_connection<S>(
-    mut stream: WebsocketStream<S>,
+    stream: &mut WebsocketStream<S>,
     id: &str,
     pingpong: bool,
 ) -> anyhow::Result<()>
 where
     S: AsyncRead + AsyncWrite + Unpin,
 {
-    info!("Announcing protocol version");
-    let version = ConsumerToServer::ProtocolVersion(morivar::PROTOCOL_VERSION);
-    stream.send(version.to_message()).await?;
+    announce_protocol_version(stream).await?;
 
-    info!("Announcing as consumer");
-    let announce = ConsumerToServer::IAmConsumer { id: id.to_string() };
-    stream.send(announce.to_message()).await?;
+    announce_as_consumer(id, stream).await?;
 
-    let mut interval = tokio::time::interval(morivar::PING_INTERVAL);
-
-    let (watchdog, mut expiration) =
-        Watchdog::with_timeout(morivar::PING_TO_PONG_ALLOWED_DELAY).run();
-    watchdog
-        .send(Signal::Stop)
-        .await
-        .expect("It's the first message");
+    let (mut interval, watchdog, mut expiration) = create_watchdog().await?;
 
     loop {
         select! {

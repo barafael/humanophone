@@ -73,15 +73,6 @@ fn handle_message(msg: &Message) -> Response<ServerToConsumer, ServerToPublisher
         }
         Ok(PublisherToServer::PublishSilence) => Forward(ServerToConsumer::Silence),
         Ok(PublisherToServer::Ping) => ReturnToSender(ServerToPublisher::Pong),
-        Ok(PublisherToServer::IAmPublisher { id }) => {
-            warn!("Publisher identified repeatedly, this time with {id}");
-            ReturnToSender(ServerToPublisher::NowAreYou)
-        }
-        Ok(m) => {
-            let msg = format!("Invalid publisher message {m:?}");
-            warn!(msg);
-            ReturnToSender(ServerToPublisher::Error(msg))
-        }
         e => ReturnToSender(ServerToPublisher::Error(format!(
             "Deserialization failed: {e:?}"
         ))),

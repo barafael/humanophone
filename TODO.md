@@ -16,7 +16,6 @@
 * Evaluate using binary messages instead of text
 * Evaluate using websocket-native pingpong
 * ~~Protocol version~~
-* Cleanly handle websocket close messages
-* Consider cross-cutting the protocol types differently. Client and server messages? Currently, for example ping and pong live in the same enum.
-* Handle version number announcement in clients
-* Use websocket close code and close reason
+* ~~Consider cross-cutting the protocol types differently. Client and server messages? Currently, for example ping and pong live in the same enum.~~
+* ~~Handle version number announcement in clients~~
+* Use websocket close code and close reason, cleanly handle websocket close messages

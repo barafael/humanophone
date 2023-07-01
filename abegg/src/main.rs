@@ -4,8 +4,10 @@ use std::time::Duration;
 
 use anyhow::Context;
 use clap::{command, Parser};
+use client_utils::{
+    announce_as_consumer, announce_protocol_version, create_client, create_uri, create_watchdog,
+};
 use futures_util::SinkExt;
-use http::Uri;
 use klib::core::{
     base::{Playable, PlaybackHandle},
     named_pitch::NamedPitch,
@@ -19,9 +21,9 @@ use tokio::{
     io::{AsyncRead, AsyncWrite},
     select,
 };
-use tokio_websockets::{ClientBuilder, WebsocketStream};
+use tokio_websockets::WebsocketStream;
 use tracing::{info, warn};
-use watchdog::{Expired, Signal, Watchdog};
+use watchdog::{Expired, Signal};
 
 mod pitches;
 
@@ -66,30 +68,17 @@ async fn main() -> anyhow::Result<()> {
     let args = Arguments::parse();
     let play_jingle = args.jingle;
     let args = args.args;
+    let secure = args.secure;
 
     if play_jingle {
         jingle(&*ABEGG)?;
     }
 
-    let uri = Uri::builder()
-        .scheme(if args.secure { "wss" } else { "ws" })
-        .authority(args.url)
-        .path_and_query("/")
-        .build()?;
+    let uri = create_uri(args.url, args.secure)?;
 
     loop {
         info!("Attempting to connect to server");
-        let stream = if args.secure {
-            let connector = native_tls::TlsConnector::builder().build()?;
-            let connector = tokio_websockets::Connector::NativeTls(connector.into());
-
-            ClientBuilder::from_uri(uri.clone())
-                .connector(&connector)
-                .connect()
-                .await?
-        } else {
-            ClientBuilder::from_uri(uri.clone()).connect().await?
-        };
+        let stream = create_client(&uri, secure).await?;
 
         if let Err(e) = handle_connection(stream, &args.id, args.pingpong).await {
             warn!("Failed to handle connection: {e:?}");
@@ -106,22 +95,11 @@ async fn handle_connection<S>(
 where
     S: AsyncRead + AsyncWrite + Unpin,
 {
-    info!("Announcing protocol version");
-    let version = ConsumerToServer::ProtocolVersion(morivar::PROTOCOL_VERSION);
-    stream.send(version.to_message()).await?;
+    announce_protocol_version(&mut stream).await?;
 
-    info!("Announcing as consumer");
-    let announce = ConsumerToServer::IAmConsumer { id: id.to_string() };
-    stream.send(announce.to_message()).await?;
+    announce_as_consumer(id, &mut stream).await?;
 
-    let mut interval = tokio::time::interval(morivar::PING_INTERVAL);
-
-    let (watchdog, mut expiration) =
-        Watchdog::with_timeout(morivar::PING_TO_PONG_ALLOWED_DELAY).run();
-    watchdog
-        .send(Signal::Stop)
-        .await
-        .expect("It's the first message");
+    let (mut interval, watchdog, mut expiration) = create_watchdog().await?;
 
     let mut handle = None;
     loop {

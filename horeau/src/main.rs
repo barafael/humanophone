@@ -4,7 +4,7 @@ use std::time::Duration;
 
 use anyhow::Error;
 use klib::core::base::{HasName, Playable, PlaybackHandle};
-use morivar::{ConsumerToServer, ServerToConsumer};
+use morivar::{ClientToServer, ServerToConsumer};
 
 use yew::{html, Component, Context, Html};
 use yew_websocket::macros::Json;
@@ -89,7 +89,7 @@ impl Component for Model {
                     true
                 }
                 WsAction::Identify(id) => {
-                    let message = ConsumerToServer::IAmConsumer { id };
+                    let message = ClientToServer::IAmConsumer { id };
                     self.ws
                         .as_mut()
                         .unwrap()

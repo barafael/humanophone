@@ -7,8 +7,10 @@ use std::{
 
 use anyhow::Context;
 use clap::{command, Parser};
+use client_utils::{
+    announce_as_publisher, announce_protocol_version, create_client, create_watchdog,
+};
 use futures_util::SinkExt;
-use http::Uri;
 use klib::core::{
     chord::Chord,
     note::{HasNoteId, Note},
@@ -20,10 +22,9 @@ use tokio::{
     sync::mpsc,
 };
 use tokio::{select, task::spawn_blocking};
-use tokio_native_tls::native_tls;
-use tokio_websockets::{ClientBuilder, WebsocketStream};
+use tokio_websockets::WebsocketStream;
 use tracing::{info, warn};
-use watchdog::{Expired, Signal, Watchdog};
+use watchdog::{Expired, Signal};
 
 use crate::midi::forward;
 
@@ -52,68 +53,55 @@ async fn main() -> anyhow::Result<()> {
     let device = args.device;
     let midi_event_queue_length = args.midi_event_queue_length;
     let args = args.args;
+    let secure = args.secure;
 
-    let uri = Uri::builder()
-        .scheme(if args.secure { "wss" } else { "ws" })
-        .authority(args.url)
-        .path_and_query("/")
-        .build()?;
+    let uri = client_utils::create_uri(args.url, args.secure)?;
 
     loop {
         let pair = Arc::new((Mutex::new(false), Condvar::new()));
 
-        let (midi_tx, midi_rx) = mpsc::channel(midi_event_queue_length);
+        let (midi_tx, mut midi_rx) = mpsc::channel(midi_event_queue_length);
 
         let midi_events = spawn_blocking(move || {
             forward(midi_tx.clone(), device, Arc::clone(&pair)).context("Failed to forward MIDI")
         });
 
-        let stream = if args.secure {
-            let connector = native_tls::TlsConnector::builder().build()?;
-            let connector = tokio_websockets::Connector::NativeTls(connector.into());
-
-            ClientBuilder::from_uri(uri.clone())
-                .connector(&connector)
-                .connect()
-                .await
-        } else {
-            ClientBuilder::from_uri(uri.clone()).connect().await
-        }
-        .context("Failed to connect to server")?;
-
-        if let Err(e) = handle_connection(stream, midi_rx, &args.id, args.pingpong).await {
-            warn!("Failed to handle connection: {e:?}");
-            tokio::time::sleep(morivar::CLIENT_RECONNECT_DURATION).await;
-        }
+        let error = loop {
+            info!("Attempting to connect to server");
+            let mut stream = match create_client(&uri, secure).await {
+                Ok(stream) => stream,
+                Err(e) => {
+                    warn!("{e:?}");
+                    break e;
+                }
+            };
+            if let Err(e) = handle_client(&mut stream, &mut midi_rx, &args.id, args.pingpong).await
+            {
+                break e;
+            }
+        };
         tokio::join!(midi_events).0??;
+        warn!("Failed to handle connection: {error:?}");
+        tokio::time::sleep(morivar::CLIENT_RECONNECT_DURATION).await;
     }
 }
 
-async fn handle_connection<S>(
-    mut stream: WebsocketStream<S>,
-    mut midi_rx: mpsc::Receiver<MidiMessage>,
+async fn handle_client<S>(
+    stream: &mut WebsocketStream<S>,
+    midi_rx: &mut mpsc::Receiver<MidiMessage>,
     id: &str,
     pingpong: bool,
 ) -> anyhow::Result<()>
 where
     S: AsyncRead + AsyncWrite + Unpin,
 {
-    let version = PublisherToServer::ProtocolVersion(morivar::PROTOCOL_VERSION);
-    stream.send(version.to_message()).await?;
+    announce_protocol_version(stream).await?;
 
-    let announce = PublisherToServer::IAmPublisher { id: id.to_string() };
-    stream.send(announce.to_message()).await?;
+    announce_as_publisher(id, stream).await?;
 
     let mut notes = HashSet::new();
 
-    let mut interval = tokio::time::interval(morivar::PING_INTERVAL);
-
-    let (watchdog, mut expiration) =
-        Watchdog::with_timeout(morivar::PING_TO_PONG_ALLOWED_DELAY).run();
-    watchdog
-        .send(Signal::Stop)
-        .await
-        .expect("It's the first message");
+    let (mut interval, watchdog, mut expiration) = create_watchdog().await?;
 
     loop {
         select! {
@@ -133,7 +121,7 @@ where
                 let Some(event) = event else {
                     break;
                 };
-                handle_midi_event(&event, &mut notes);
+                handle_midi_event(event, &mut notes);
                 let message = if let Some(chord) =
                     Chord::try_from_notes(notes.iter().copied().collect::<Vec<_>>().as_slice())
                         .ok()
@@ -162,11 +150,11 @@ where
     Ok(())
 }
 
-fn handle_midi_event(event: &MidiMessage, notes: &mut HashSet<Note>) {
+fn handle_midi_event(event: MidiMessage, notes: &mut HashSet<Note>) {
     match event {
         MidiMessage::NoteOn { key, vel } => {
             if let Ok(note) = Note::from_id(1u128 << key.as_int()) {
-                if vel == &0 {
+                if vel == 0 {
                     // It's a note-off, just hiding
                     notes.remove(&note);
                 } else {

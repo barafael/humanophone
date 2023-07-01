@@ -1,9 +1,9 @@
 #![doc = include_str!("../README.md")]
 
 use anyhow::Context;
-use morivar::PublisherToServer;
+use morivar::ClientToServer;
+use morivar::ServerToConsumer;
 use morivar::PROTOCOL_VERSION;
-use morivar::{ConsumerToServer, ServerToConsumer};
 use tokio::io::AsyncRead;
 use tokio::io::AsyncWrite;
 use tokio::sync::broadcast;
@@ -71,10 +71,10 @@ where
     let Ok(text) = identification.as_text() else {
         anyhow::bail!("Protocol error, second message wasn't a text message: {identification:?}");
     };
-    if let Ok(PublisherToServer::IAmPublisher { id }) = serde_json::from_str(text) {
+    if let Ok(ClientToServer::IAmPublisher { id }) = serde_json::from_str(text) {
         info!("Identified \"{id}\" as publisher");
         publisher::run(chords_sender, stream, pingpong).await?;
-    } else if let Ok(ConsumerToServer::IAmConsumer { id }) = serde_json::from_str(text) {
+    } else if let Ok(ClientToServer::IAmConsumer { id }) = serde_json::from_str(text) {
         info!("Identified \"{id}\" as consumer");
         let chords_rx = chords_sender.subscribe();
         consumer::run(chords_rx, stream, pingpong).await?;
@@ -86,15 +86,11 @@ where
 
 fn determine_protocol_version(version: &Message) -> anyhow::Result<u32> {
     let Ok(text) = version.as_text() else {
-        anyhow::bail!("initial message wasn't a text message: {version:?}");
+        anyhow::bail!("Expected version, got non-text message: {version:?}");
     };
-    if let Ok(PublisherToServer::ProtocolVersion(version)) = serde_json::from_str(text) {
-        info!("Publisher client with protocol version {version}");
-        Ok(version)
-    } else if let Ok(ConsumerToServer::ProtocolVersion(version)) = serde_json::from_str(text) {
-        info!("Consumer client with protocol version {version}");
-        Ok(version)
-    } else {
+    let Ok(ClientToServer::ProtocolVersion(version)) = serde_json::from_str(text) else {
         anyhow::bail!("version decoding failed: {text}");
-    }
+    };
+    info!("Client with protocol version {version}");
+    Ok(version)
 }

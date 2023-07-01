@@ -5,8 +5,10 @@ use std::{fs::File, io::BufReader, path::PathBuf, time::Duration};
 
 use anyhow::Context;
 use clap::{command, Parser};
+use client_utils::{
+    announce_as_publisher, announce_protocol_version, create_client, create_uri, create_watchdog,
+};
 use futures_util::SinkExt;
-use http::Uri;
 use klib::core::{
     chord::{Chord, Chordable},
     modifier::{Degree, Extension, Modifier},
@@ -17,10 +19,9 @@ use tokio::{
     io::{AsyncRead, AsyncWrite},
     select,
 };
-use tokio_native_tls::native_tls;
-use tokio_websockets::{ClientBuilder, WebsocketStream};
+use tokio_websockets::WebsocketStream;
 use tracing::{info, warn};
-use watchdog::{Expired, Signal, Watchdog};
+use watchdog::{Expired, Signal};
 
 #[derive(Debug, Parser)]
 #[command(author, version)]
@@ -64,6 +65,7 @@ async fn main() -> anyhow::Result<()> {
     let template = args.template;
     let interval = args.interval;
     let args = args.args;
+    let secure = args.secure;
 
     if let Some(path) = template {
         let song = simple_sequence();
@@ -75,25 +77,11 @@ async fn main() -> anyhow::Result<()> {
     let song: Vec<Chord> = serde_json::from_reader(BufReader::new(File::open(song)?))?;
     let song = song.iter().cycle();
 
-    let uri = Uri::builder()
-        .scheme(if args.secure { "wss" } else { "ws" })
-        .authority(args.url)
-        .path_and_query("/")
-        .build()?;
+    let uri = create_uri(args.url, secure)?;
 
     loop {
         info!("Attempting to connect to server");
-        let mut stream = if args.secure {
-            let connector = native_tls::TlsConnector::builder().build()?;
-            let connector = tokio_websockets::Connector::NativeTls(connector.into());
-
-            ClientBuilder::from_uri(uri.clone())
-                .connector(&connector)
-                .connect()
-                .await?
-        } else {
-            ClientBuilder::from_uri(uri.clone()).connect().await?
-        };
+        let mut stream = create_client(&uri, secure).await?;
 
         if let Err(e) = handle_connection(
             &mut stream,
@@ -127,22 +115,13 @@ async fn handle_connection<S>(
 where
     S: AsyncRead + AsyncWrite + Unpin,
 {
-    let version = PublisherToServer::ProtocolVersion(morivar::PROTOCOL_VERSION);
-    stream.send(version.to_message()).await?;
+    announce_protocol_version(stream).await?;
 
-    let announce = PublisherToServer::IAmPublisher { id: id.to_string() };
-    stream.send(announce.to_message()).await?;
+    announce_as_publisher(id, stream).await?;
 
     let mut chord_interval = tokio::time::interval(*interval + Duration::from_millis(500));
 
-    let mut interval = tokio::time::interval(morivar::PING_INTERVAL);
-
-    let (watchdog, mut expiration) =
-        Watchdog::with_timeout(morivar::PING_TO_PONG_ALLOWED_DELAY).run();
-    watchdog
-        .send(Signal::Stop)
-        .await
-        .expect("It's the first message");
+    let (mut interval, watchdog, mut expiration) = create_watchdog().await?;
 
     loop {
         select! {

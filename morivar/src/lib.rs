@@ -25,12 +25,19 @@ pub const PROTOCOL_VERSION: u32 = 1;
 pub const CLIENT_RECONNECT_DURATION: Duration = Duration::from_millis(500);
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub enum PublisherToServer {
+pub enum ClientToServer {
     IAmPublisher {
+        id: String,
+    },
+    IAmConsumer {
         id: String,
     },
     #[serde(rename = "PublisherProtocolVersion")]
     ProtocolVersion(u32),
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum PublisherToServer {
     PublishChord(Chord),
     PublishPitches(HashSet<Note>),
     PublishSilence,
@@ -46,11 +53,6 @@ pub enum ServerToPublisher {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum ConsumerToServer {
-    IAmConsumer {
-        id: String,
-    },
-    #[serde(rename = "ConsumerProtocolVersion")]
-    ProtocolVersion(u32),
     Ping,
 }
 
