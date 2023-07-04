@@ -43,7 +43,7 @@ where
                         warn!("Reading from stream produced error: {e:?}");
                     }
                     None => {
-                        info!("Stream closed");
+                        info!("Publisher stream closed");
                         return Ok(())
                     }
                 }

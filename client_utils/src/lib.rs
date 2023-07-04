@@ -1,9 +1,12 @@
 #![doc = include_str!("../README.md")]
 
+use std::time::Duration;
+
 use anyhow::{anyhow, Context};
 use futures_util::SinkExt;
 use http::{uri::Authority, Uri};
 use morivar::{ClientToServer, ToMessage};
+use rand::{thread_rng, Rng};
 use tokio::{
     io::{AsyncRead, AsyncWrite},
     net::TcpStream,
@@ -103,4 +106,12 @@ pub async fn flatten<T>(handle: JoinHandle<anyhow::Result<T>>) -> anyhow::Result
         Ok(Err(err)) => Err(err),
         Err(err) => Err(anyhow!(err)),
     }
+}
+
+pub fn jittering_retry_duration() -> Duration {
+    morivar::CLIENT_RECONNECT_DURATION + jitter_duration()
+}
+
+fn jitter_duration() -> Duration {
+    Duration::from_millis(thread_rng().gen_range(0..=250))
 }

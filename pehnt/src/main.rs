@@ -4,6 +4,7 @@ use anyhow::Context;
 use clap::{command, Parser};
 use client_utils::{
     announce_as_consumer, announce_protocol_version, create_client, create_uri, create_watchdog,
+    flatten,
 };
 use futures_util::SinkExt;
 use morivar::{ConsumerToServer, ServerToConsumer, ToMessage};
@@ -31,21 +32,29 @@ async fn main() -> anyhow::Result<()> {
     let uri = create_uri(args.url, args.secure)?;
 
     loop {
-        info!("Attempting to connect to server");
-        let mut stream = create_client(&uri, args.secure).await?;
+        let uri = uri.clone();
+        let id = args.id.clone();
+        // tokio::spawn to contain errors and panics, then wait, then rebuild
+        let handle = tokio::spawn(async move {
+            info!("Attempting to connect to server");
+            let mut stream = create_client(&uri, args.secure).await?;
 
-        if let Err(e) = handle_connection(&mut stream, &args.id, args.pingpong).await {
-            warn!("Failed to handle connection: {e:?}");
-            tokio::time::sleep(morivar::CLIENT_RECONNECT_DURATION).await;
+            if let Err(e) = pehnt(&mut stream, &id, args.pingpong).await {
+                warn!("Failed to handle connection: {e:?}");
+            }
+            anyhow::Ok(())
+        });
+
+        if let Err(e) = flatten(handle).await {
+            warn!("{e:?}");
         }
+
+        tokio::time::sleep(client_utils::jittering_retry_duration()).await;
     }
 }
 
-async fn handle_connection<S>(
-    stream: &mut WebsocketStream<S>,
-    id: &str,
-    pingpong: bool,
-) -> anyhow::Result<()>
+/// Handle the client connection
+async fn pehnt<S>(stream: &mut WebsocketStream<S>, id: &str, pingpong: bool) -> anyhow::Result<()>
 where
     S: AsyncRead + AsyncWrite + Unpin,
 {

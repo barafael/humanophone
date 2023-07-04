@@ -6,7 +6,6 @@ use anyhow::Context;
 use clap::{command, Parser};
 use client_utils::{
     announce_as_consumer, announce_protocol_version, create_client, create_uri, create_watchdog,
-    flatten,
 };
 use either::Either;
 use futures_util::SinkExt;
@@ -18,10 +17,9 @@ use once_cell::sync::Lazy;
 use pitches::Pitches;
 use tokio::{
     io::{AsyncRead, AsyncWrite},
-    select,
+    join, select,
     sync::mpsc,
     task::spawn_blocking,
-    try_join,
 };
 use tokio_websockets::WebsocketStream;
 use tracing::{info, warn};
@@ -92,17 +90,16 @@ async fn main() -> anyhow::Result<()> {
             info!("Attempting to connect to server");
             let stream = create_client(&uri, secure).await?;
 
-            handle_connection(stream, &id, args.pingpong, chord_tx).await?;
-            if let Err(e) = try_join!(flatten(handle)) {
-                warn!("{e:?}");
-            }
+            abegg(stream, &id, args.pingpong, chord_tx).await?;
+            join!(handle).0?;
             anyhow::Ok(())
         });
-        tokio::time::sleep(morivar::CLIENT_RECONNECT_DURATION).await;
+        tokio::time::sleep(client_utils::jittering_retry_duration()).await;
     }
 }
 
-async fn handle_connection<S>(
+/// Handle the client connection
+async fn abegg<S>(
     mut stream: WebsocketStream<S>,
     id: &str,
     pingpong: bool,
@@ -136,7 +133,7 @@ where
                     break
                 };
                 if let Some(either) = new_handle {
-                    chords.send(either).await?
+                    chords.send(either).await?;
                 }
             }
             _i = interval.tick(), if pingpong => {

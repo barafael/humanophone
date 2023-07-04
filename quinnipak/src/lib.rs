@@ -18,7 +18,8 @@ mod consumer;
 mod publisher;
 pub mod secure;
 
-pub async fn handle_connection<Stream>(
+/// Handle the connection
+pub async fn quinnipak<Stream>(
     stream: Stream,
     chords_tx: broadcast::Sender<ServerToConsumer>,
     acceptor: Option<TlsAcceptor>,

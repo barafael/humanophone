@@ -104,10 +104,12 @@ async fn main() -> anyhow::Result<()> {
         });
         let error = tokio::try_join!(flatten(handle));
         warn!("Failed to handle connection: {error:?}");
-        tokio::time::sleep(morivar::CLIENT_RECONNECT_DURATION).await;
+
+        tokio::time::sleep(client_utils::jittering_retry_duration()).await;
     }
 }
 
+/// Handle the client connection
 async fn jobbard<S>(
     stream: &mut WebsocketStream<S>,
     id: &str,

@@ -6,7 +6,7 @@ use tokio::sync::mpsc;
 
 use crate::pitches::Pitches;
 
-pub fn run(mut rx: mpsc::Receiver<Either<Chord, Pitches>>) -> anyhow::Result<()> {
+pub fn run(mut rx: mpsc::Receiver<Either<Chord, Pitches>>) {
     // .play(
     let mut handle = None;
     while let Some(msg) = rx.blocking_recv() {
@@ -16,17 +16,16 @@ pub fn run(mut rx: mpsc::Receiver<Either<Chord, Pitches>>) -> anyhow::Result<()>
                     Duration::ZERO,
                     Duration::from_secs(5),
                     Duration::from_millis(500),
-                ))
+                ));
             }
             Either::Right(pitches) => {
                 handle = Some(pitches.play(
                     Duration::ZERO,
                     Duration::from_secs(5),
                     Duration::from_millis(500),
-                ))
+                ));
             }
         }
     }
     drop(handle);
-    Ok(())
 }

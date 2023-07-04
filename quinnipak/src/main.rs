@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use anyhow::Context;
 use clap::Parser;
-use quinnipak::handle_connection;
+use quinnipak::quinnipak;
 use quinnipak::secure::{load_certs, load_keys};
 use quinnipak::{cli::Arguments, secure::SecurityMode};
 use tokio::{net::TcpListener, sync::broadcast};
@@ -41,7 +41,7 @@ async fn main() -> anyhow::Result<()> {
         let acceptor = acceptor.clone();
 
         tokio::spawn(async move {
-            if let Err(e) = handle_connection(stream, chords_tx, acceptor, args.pingpong).await {
+            if let Err(e) = quinnipak(stream, chords_tx, acceptor, args.pingpong).await {
                 warn!("Error while handling connection: {e:?}");
             }
         });

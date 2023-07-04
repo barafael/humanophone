@@ -8,7 +8,7 @@ use std::{
 use anyhow::Context;
 use clap::{command, Parser};
 use client_utils::{
-    announce_as_publisher, announce_protocol_version, create_client, create_watchdog,
+    announce_as_publisher, announce_protocol_version, create_client, create_watchdog, flatten,
 };
 use futures_util::SinkExt;
 use klib::core::{
@@ -53,42 +53,51 @@ async fn main() -> anyhow::Result<()> {
     let device = args.device;
     let midi_event_queue_length = args.midi_event_queue_length;
     let args = args.args;
-    let secure = args.secure;
 
     let uri = client_utils::create_uri(args.url, args.secure)?;
 
     loop {
-        let pair = Arc::new((Mutex::new(false), Condvar::new()));
+        let uri = uri.clone();
+        let id = args.id.clone();
 
-        let (midi_tx, mut midi_rx) = mpsc::channel(midi_event_queue_length);
+        // tokio::spawn to contain errors and panics, then wait, then rebuild
+        let handle = tokio::spawn(async move {
+            let pair = Arc::new((Mutex::new(false), Condvar::new()));
+            let pair2 = Arc::clone(&pair);
 
-        let midi_events = spawn_blocking(move || {
-            forward(midi_tx.clone(), device, Arc::clone(&pair)).context("Failed to forward MIDI")
+            let (midi_tx, midi_rx) = mpsc::channel(midi_event_queue_length);
+
+            let midi_events = spawn_blocking(move || {
+                forward(midi_tx.clone(), device, Arc::clone(&pair))
+                    .context("Failed to forward MIDI")
+            });
+
+            info!("Attempting to connect to server");
+            let mut stream = create_client(&uri, args.secure).await?;
+
+            pekisch(&mut stream, midi_rx, &id, args.pingpong).await?;
+
+            let lock = &pair2.0;
+            let cvar = &pair2.1;
+            *lock.lock().unwrap() = true;
+            cvar.notify_all();
+
+            tokio::join!(midi_events).0??;
+            anyhow::Ok(())
         });
 
-        let error = loop {
-            info!("Attempting to connect to server");
-            let mut stream = match create_client(&uri, secure).await {
-                Ok(stream) => stream,
-                Err(e) => {
-                    warn!("{e:?}");
-                    break e;
-                }
-            };
-            if let Err(e) = handle_client(&mut stream, &mut midi_rx, &args.id, args.pingpong).await
-            {
-                break e;
-            }
-        };
-        tokio::join!(midi_events).0??;
-        warn!("Failed to handle connection: {error:?}");
-        tokio::time::sleep(morivar::CLIENT_RECONNECT_DURATION).await;
+        if let Err(e) = flatten(handle).await {
+            warn!("{e:?}");
+        }
+
+        tokio::time::sleep(client_utils::jittering_retry_duration()).await;
     }
 }
 
-async fn handle_client<S>(
+/// Handle the client connection
+async fn pekisch<S>(
     stream: &mut WebsocketStream<S>,
-    midi_rx: &mut mpsc::Receiver<MidiMessage>,
+    mut midi_rx: mpsc::Receiver<MidiMessage>,
     id: &str,
     pingpong: bool,
 ) -> anyhow::Result<()>

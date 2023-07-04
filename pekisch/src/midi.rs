@@ -79,7 +79,7 @@ pub fn forward(
                     let lock = &cond.0;
                     let cvar = &cond.1;
                     *lock.lock().unwrap() = true;
-                    cvar.notify_one();
+                    cvar.notify_all();
                 }
             },
             Arc::clone(&cond_var),

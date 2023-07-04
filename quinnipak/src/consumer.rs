@@ -35,7 +35,7 @@ where
                         e.context("Error on websocket client connection")?;
                     }
                     None => {
-                        info!("Stream ended!");
+                        info!("Consumer stream closed!");
                         break;
                     }
                 }
