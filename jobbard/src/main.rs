@@ -1,12 +1,13 @@
 #![feature(never_type)]
 #![doc = include_str!("../README.md")]
 
-use std::{fs::File, io::BufReader, path::PathBuf, time::Duration};
+use std::{fs::File, io::BufReader, path::PathBuf, sync::Arc, time::Duration};
 
 use anyhow::Context;
 use clap::{command, Parser};
 use client_utils::{
     announce_as_publisher, announce_protocol_version, create_client, create_uri, create_watchdog,
+    flatten,
 };
 use futures_util::SinkExt;
 use klib::core::{
@@ -66,6 +67,7 @@ async fn main() -> anyhow::Result<()> {
     let interval = args.interval;
     let args = args.args;
     let secure = args.secure;
+    let id = args.id;
 
     if let Some(path) = template {
         let song = simple_sequence();
@@ -75,33 +77,35 @@ async fn main() -> anyhow::Result<()> {
     }
 
     let song: Vec<Chord> = serde_json::from_reader(BufReader::new(File::open(song)?))?;
-    let song = song.iter().cycle();
+    let song = Arc::new(song);
 
     let uri = create_uri(args.url, secure)?;
 
     loop {
-        info!("Attempting to connect to server");
-        let mut stream = create_client(&uri, secure).await?;
+        let id = id.clone();
+        let uri = uri.clone();
+        let song = Arc::clone(&song);
+        let handle = tokio::spawn(async move {
+            let song = song.iter().cycle();
+            info!("Attempting to connect to server");
+            let mut stream = create_client(&uri, secure).await?;
 
-        if let Err(e) = handle_connection(
-            &mut stream,
-            &args.id,
-            args.pingpong,
-            &interval,
-            song.clone(),
-        )
-        .await
-        {
-            stream
+            let result =
+                handle_connection(&mut stream, &id, args.pingpong, &interval, song.clone()).await;
+            if let Err(e) = stream
                 .send(PublisherToServer::PublishSilence.to_message())
-                .await?;
-            stream
-                .close(None, None)
                 .await
-                .context("Failed to close websocket client")?;
-            warn!("Failed to handle connection: {e:?}");
-            tokio::time::sleep(morivar::CLIENT_RECONNECT_DURATION).await;
-        }
+            {
+                warn!("Failed to publish final silence: {e:?}");
+            }
+            if let Err(e) = stream.close(None, None).await {
+                warn!("Failed to close the stream: {e:?}");
+            }
+            result
+        });
+        let error = tokio::try_join!(flatten(handle));
+        warn!("Failed to handle connection: {error:?}");
+        tokio::time::sleep(morivar::CLIENT_RECONNECT_DURATION).await;
     }
 }
 
@@ -111,7 +115,7 @@ async fn handle_connection<S>(
     pingpong: bool,
     interval: &Duration,
     mut song: impl Iterator<Item = &Chord>,
-) -> anyhow::Result<!>
+) -> anyhow::Result<()>
 where
     S: AsyncRead + AsyncWrite + Unpin,
 {

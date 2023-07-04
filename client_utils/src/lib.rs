@@ -95,3 +95,11 @@ pub async fn create_watchdog(
 
     Ok((interval, watchdog, expiration))
 }
+
+pub async fn flatten<T>(handle: JoinHandle<anyhow::Result<T>>) -> anyhow::Result<T> {
+    match handle.await {
+        Ok(Ok(result)) => Ok(result),
+        Ok(Err(err)) => Err(err),
+        Err(err) => Err(anyhow!(err)),
+    }
+}

@@ -72,7 +72,7 @@ mod test {
 
     #[test]
     fn serializes_announce() {
-        let message = ConsumerToServer::IAmConsumer {
+        let message = ClientToServer::IAmConsumer {
             id: "Hello there".to_string(),
         };
         dbg!(serde_json::to_string_pretty(&message).unwrap());
@@ -80,7 +80,7 @@ mod test {
 
     #[test]
     fn serializes_piano_announce() {
-        let message = PublisherToServer::IAmPublisher {
+        let message = ClientToServer::IAmPublisher {
             id: "Hello there".to_string(),
         };
         println!("{}", serde_json::to_string_pretty(&message).unwrap());
