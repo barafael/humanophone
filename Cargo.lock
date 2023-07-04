@@ -9,6 +9,7 @@ dependencies = [
  "anyhow",
  "clap",
  "client_utils",
+ "either",
  "futures-util",
  "http",
  "kord",

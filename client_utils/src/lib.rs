@@ -1,6 +1,6 @@
 #![doc = include_str!("../README.md")]
 
-use anyhow::Context;
+use anyhow::{anyhow, Context};
 use futures_util::SinkExt;
 use http::{uri::Authority, Uri};
 use morivar::{ClientToServer, ToMessage};
@@ -8,6 +8,7 @@ use tokio::{
     io::{AsyncRead, AsyncWrite},
     net::TcpStream,
     sync::{mpsc, oneshot},
+    task::JoinHandle,
     time::Interval,
 };
 use tokio_native_tls::native_tls;

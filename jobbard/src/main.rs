@@ -90,8 +90,7 @@ async fn main() -> anyhow::Result<()> {
             info!("Attempting to connect to server");
             let mut stream = create_client(&uri, secure).await?;
 
-            let result =
-                handle_connection(&mut stream, &id, args.pingpong, &interval, song.clone()).await;
+            let result = jobbard(&mut stream, &id, args.pingpong, &interval, song.clone()).await;
             if let Err(e) = stream
                 .send(PublisherToServer::PublishSilence.to_message())
                 .await
@@ -109,7 +108,7 @@ async fn main() -> anyhow::Result<()> {
     }
 }
 
-async fn handle_connection<S>(
+async fn jobbard<S>(
     stream: &mut WebsocketStream<S>,
     id: &str,
     pingpong: bool,

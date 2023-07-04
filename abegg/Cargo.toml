@@ -7,6 +7,7 @@ edition = "2021"
 anyhow = "1.0.71"
 clap = { version = "4.3.8", features = ["derive"] }
 client_utils = { path = "../client_utils" }
+either = "1.8.1"
 futures-util = "0.3.28"
 http = "0.2.9"
 kord = { git = "https://github.com/twitchax/kord.git", features = ["audio"] }

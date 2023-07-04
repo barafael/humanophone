@@ -6,13 +6,12 @@ use anyhow::Context;
 use clap::{command, Parser};
 use client_utils::{
     announce_as_consumer, announce_protocol_version, create_client, create_uri, create_watchdog,
+    flatten,
 };
+use either::Either;
 use futures_util::SinkExt;
 use klib::core::{
-    base::{Playable, PlaybackHandle},
-    named_pitch::NamedPitch,
-    note::Note,
-    octave::Octave,
+    base::Playable, chord::Chord, named_pitch::NamedPitch, note::Note, octave::Octave,
 };
 use morivar::{ConsumerToServer, ServerToConsumer, ToMessage};
 use once_cell::sync::Lazy;
@@ -20,12 +19,16 @@ use pitches::Pitches;
 use tokio::{
     io::{AsyncRead, AsyncWrite},
     select,
+    sync::mpsc,
+    task::spawn_blocking,
+    try_join,
 };
 use tokio_websockets::WebsocketStream;
 use tracing::{info, warn};
 use watchdog::{Expired, Signal};
 
 mod pitches;
+mod playback;
 
 #[derive(Debug, Parser)]
 #[command(author, version)]
@@ -69,6 +72,7 @@ async fn main() -> anyhow::Result<()> {
     let play_jingle = args.jingle;
     let args = args.args;
     let secure = args.secure;
+    let id = args.id;
 
     if play_jingle {
         jingle(&*ABEGG)?;
@@ -77,13 +81,24 @@ async fn main() -> anyhow::Result<()> {
     let uri = create_uri(args.url, args.secure)?;
 
     loop {
-        info!("Attempting to connect to server");
-        let stream = create_client(&uri, secure).await?;
+        let uri = uri.clone();
+        let id = id.clone();
 
-        if let Err(e) = handle_connection(stream, &args.id, args.pingpong).await {
-            warn!("Failed to handle connection: {e:?}");
-            tokio::time::sleep(morivar::CLIENT_RECONNECT_DURATION).await;
-        }
+        tokio::spawn(async move {
+            let (chord_tx, chord_rx) = mpsc::channel(32);
+
+            let handle = spawn_blocking(move || playback::run(chord_rx));
+
+            info!("Attempting to connect to server");
+            let stream = create_client(&uri, secure).await?;
+
+            handle_connection(stream, &id, args.pingpong, chord_tx).await?;
+            if let Err(e) = try_join!(flatten(handle)) {
+                warn!("{e:?}");
+            }
+            anyhow::Ok(())
+        });
+        tokio::time::sleep(morivar::CLIENT_RECONNECT_DURATION).await;
     }
 }
 
@@ -91,6 +106,7 @@ async fn handle_connection<S>(
     mut stream: WebsocketStream<S>,
     id: &str,
     pingpong: bool,
+    chords: mpsc::Sender<Either<Chord, Pitches>>,
 ) -> anyhow::Result<()>
 where
     S: AsyncRead + AsyncWrite + Unpin,
@@ -101,7 +117,6 @@ where
 
     let (mut interval, watchdog, mut expiration) = create_watchdog().await?;
 
-    let mut handle = None;
     loop {
         select! {
             msg = stream.next() => {
@@ -120,7 +135,9 @@ where
                 let Ok(new_handle) = handle_message(text) else {
                     break
                 };
-                handle = new_handle;
+                if let Some(either) = new_handle {
+                    chords.send(either).await?
+                }
             }
             _i = interval.tick(), if pingpong => {
                 info!("Sending Ping!");
@@ -133,32 +150,20 @@ where
             }
         }
     }
-    drop(handle);
 
     stream.close(None, None).await?;
     Ok(())
 }
 
-fn handle_message(text: &str) -> anyhow::Result<Option<PlaybackHandle>> {
+fn handle_message(text: &str) -> anyhow::Result<Option<Either<Chord, Pitches>>> {
     let Ok(msg) = serde_json::from_str::<ServerToConsumer>(text) else {
         anyhow::bail!("Protocol error, expected text message, got {text:?}")
     };
     match msg {
-        ServerToConsumer::ChordEvent(chord) => {
-            let ph = chord.play(
-                Duration::ZERO,
-                Duration::from_secs(5),
-                Duration::from_millis(500),
-            )?;
-            Ok(Some(ph))
-        }
+        ServerToConsumer::ChordEvent(chord) => Ok(Some(Either::Left(chord))),
         ServerToConsumer::PitchesEvent(pitches) => {
-            let ph = Pitches::from(pitches).play(
-                Duration::ZERO,
-                Duration::from_secs(5),
-                Duration::from_millis(500),
-            )?;
-            Ok(Some(ph))
+            let pitches = Pitches::from(pitches);
+            Ok(Some(Either::Right(pitches)))
         }
         ServerToConsumer::Silence | ServerToConsumer::Pong => Ok(None),
     }
