@@ -4,21 +4,21 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-anyhow = "1.0.71"
-clap = { version = "4.3.8", features = ["derive"] }
-either = "1.8.1"
-futures-util = "0.3.28"
-http = "0.2.9"
+anyhow = "1.0.93"
+clap = { version = "4.5.20", features = ["derive"] }
+either = "1.13.0"
+futures-util = "0.3.31"
+http = "0.2.12"
 kord = { git = "https://github.com/twitchax/kord.git" }
 morivar = { path = "../morivar", features = ["message"] }
-rustls = "0.21.2"
-rustls-pemfile = "1.0.2"
+rustls = "0.21.12"
+rustls-pemfile = "1.0.4"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
-thiserror = "1.0.40"
-tokio = { version = "1.28.2", features = ["full"] }
+thiserror = "1.0.68"
+tokio = { version = "1.41.0", features = ["full"] }
 tokio-rustls = "0.24.1"
 tokio-websockets = { version = "0.3.3", features = ["server"] }
-tracing = "0.1.37"
-tracing-subscriber = "0.3.17"
-watchdog = { git = "https://github.com/barafael/watchdog.git" }
+tracing = "0.1.40"
+tracing-subscriber = "0.3.18"
+simple-tokio-watchdog = { git = "https://github.com/barafael/watchdog.git" }

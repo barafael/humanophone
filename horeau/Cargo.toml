@@ -4,17 +4,17 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-anyhow = "1.0.71"
+anyhow = "1.0.93"
 kord = { git = "https://github.com/twitchax/kord.git", features = [
     "serde",
     "wasm",
 ], default-features = false }
 morivar = { path = "../morivar" }
-serde = { version = "1.0.164", features = ["derive"] }
-serde_json = "1.0.99"
-tracing = "0.1.37"
-tracing-subscriber = { version = "0.3.17", features = ["fmt", "std"] }
-tracing-web = "0.1.2"
-wasm-bindgen = "0.2.87"
+serde = { version = "1.0.214", features = ["derive"] }
+serde_json = "1.0.132"
+tracing = "0.1.40"
+tracing-subscriber = { version = "0.3.18", features = ["fmt", "std"] }
+tracing-web = "0.1.3"
+wasm-bindgen = "0.2.95"
 yew = { version = "0.20.0", features = ["csr"] }
-yew-websocket = "1.0.0"
+yew-websocket = "1.21.0"

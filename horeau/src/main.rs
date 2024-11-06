@@ -7,8 +7,10 @@ use klib::core::base::{HasName, Playable, PlaybackHandle};
 use morivar::{ClientToServer, ServerToConsumer};
 
 use yew::{html, Component, Context, Html};
-use yew_websocket::macros::Json;
-use yew_websocket::websocket::{WebSocketService, WebSocketStatus, WebSocketTask};
+use yew_websocket::{
+    format::Text,
+    websocket::{WebSocketService, WebSocketStatus, WebSocketTask},
+};
 pub enum WsAction {
     Connect,
     Identify(String),
@@ -75,7 +77,12 @@ impl Component for Model {
         match msg {
             Msg::WsAction(action) => match action {
                 WsAction::Connect => {
-                    let callback = ctx.link().callback(|Json(data)| Msg::WsReady(data));
+                    let callback = ctx.link().callback(|Text(message)| {
+                        let content: Result<Msg, serde_json::Error> =
+                            serde_json::from_str(&message.context("")?);
+                        Msg::WsReady(content);
+                        todo!()
+                    });
                     let notification = ctx.link().batch_callback(|status| match status {
                         WebSocketStatus::Opened => None,
                         WebSocketStatus::Closed | WebSocketStatus::Error => {

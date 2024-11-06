@@ -4,19 +4,19 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-anyhow = "1.0.71"
-clap = { version = "4.3.8", features = ["derive"] }
+anyhow = "1.0.93"
+clap = { version = "4.5.20", features = ["derive"] }
 client_utils = { path = "../client_utils" }
-futures-util = "0.3.28"
-http = "0.2.9"
+futures-util = "0.3.31"
+http = "0.2.12"
 humantime = "2.1.0"
 kord = { git = "https://github.com/twitchax/kord.git" }
 morivar = { path = "../morivar", features = ["message", "cli"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
-tokio = { version = "1.28.2", features = ["full"] }
+tokio = { version = "1.41.0", features = ["full"] }
 tokio-native-tls = "0.3.1"
 tokio-websockets = { version = "0.3.3", features = ["client"] }
-tracing = "0.1.37"
-tracing-subscriber = "0.3.17"
-watchdog = { git = "https://github.com/barafael/watchdog.git" }
+tracing = "0.1.40"
+tracing-subscriber = "0.3.18"
+simple-tokio-watchdog = { git = "https://github.com/barafael/watchdog.git" }
