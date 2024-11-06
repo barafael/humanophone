@@ -1,0 +1,21 @@
+[package]
+name = "slinger"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+anyhow = "1.0.71"
+clap = { version = "4.3.3", features = ["derive"] }
+futures-util = "0.3.28"
+http = "0.2.9"
+humantime = "2.1.0"
+kord = { git = "https://github.com/barafael/kord.git", branch = "feet/arb", features = [
+    "arb",
+] }
+morivar = { path = "../morivar", features = ["message", "cli"] }
+proptest = "1.2.0"
+tokio = { version = "1.28.2", features = ["full"] }
+tokio-native-tls = "0.3.1"
+tokio-websockets = { version = "0.3.2", features = ["client", "native-tls"] }
+tracing = "0.1.37"
+tracing-subscriber = "0.3.17"
