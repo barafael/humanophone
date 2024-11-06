@@ -1,13 +1,5 @@
 [workspace]
 
-members = [
-    "abegg",
-    "horeau",
-    "jobbard",
-    "morivar",
-    "pehnt",
-    "pekisch",
-    "quinnipak",
-]
+members = ["abegg", "jobbard", "morivar", "pehnt", "pekisch", "quinnipak"]
 
 resolver = "2"

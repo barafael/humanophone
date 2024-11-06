@@ -7,6 +7,7 @@ use futures_util::SinkExt;
 use http::{uri::Authority, Uri};
 use morivar::{ClientToServer, ToMessage};
 use rand::{thread_rng, Rng};
+use simple_tokio_watchdog::{Expired, Signal, Watchdog};
 use tokio::{
     io::{AsyncRead, AsyncWrite},
     net::TcpStream,
@@ -17,7 +18,6 @@ use tokio::{
 use tokio_native_tls::native_tls;
 use tokio_websockets::{ClientBuilder, MaybeTlsStream, WebsocketStream};
 use tracing::info;
-use watchdog::{Expired, Signal, Watchdog};
 
 pub fn create_uri(uri: Authority, secure: bool) -> Result<Uri, http::Error> {
     Uri::builder()

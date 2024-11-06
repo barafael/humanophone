@@ -17,6 +17,7 @@ use klib::core::{
 };
 use midly::MidiMessage;
 use morivar::{PublisherToServer, ServerToPublisher, ToMessage};
+use simple_tokio_watchdog::{Expired, Signal};
 use tokio::{
     io::{AsyncRead, AsyncWrite},
     sync::mpsc,
@@ -24,7 +25,6 @@ use tokio::{
 use tokio::{select, task::spawn_blocking};
 use tokio_websockets::WebsocketStream;
 use tracing::{info, warn};
-use watchdog::{Expired, Signal};
 
 use crate::midi::forward;
 
@@ -34,7 +34,7 @@ mod midi;
 #[command(author, version)]
 struct Arguments {
     #[command(flatten)]
-    args: morivar::cli::ClientArguments<{ env!("CARGO_BIN_NAME") }>,
+    args: morivar::cli::ClientArguments,
 
     /// The index of the midi device to use
     #[arg(long)]

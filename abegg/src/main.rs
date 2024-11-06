@@ -15,6 +15,7 @@ use klib::core::{
 use morivar::{ConsumerToServer, ServerToConsumer, ToMessage};
 use once_cell::sync::Lazy;
 use pitches::Pitches;
+use simple_tokio_watchdog::{Expired, Signal};
 use tokio::{
     io::{AsyncRead, AsyncWrite},
     join, select,
@@ -23,7 +24,6 @@ use tokio::{
 };
 use tokio_websockets::WebsocketStream;
 use tracing::{info, warn};
-use watchdog::{Expired, Signal};
 
 mod pitches;
 mod playback;
@@ -32,7 +32,7 @@ mod playback;
 #[command(author, version)]
 struct Arguments {
     #[command(flatten)]
-    args: morivar::cli::ClientArguments<{ env!("CARGO_BIN_NAME") }>,
+    args: morivar::cli::ClientArguments,
 
     /// Whether to play the ABEGG jingle
     #[arg(long, default_value_t = false)]

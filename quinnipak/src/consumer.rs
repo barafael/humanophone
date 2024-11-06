@@ -1,13 +1,13 @@
 use anyhow::Context;
 use futures_util::SinkExt;
 use morivar::{ConsumerToServer, ServerToConsumer, ToMessage};
+use simple_tokio_watchdog::{Expired, Signal, Watchdog};
 use tokio::{
     io::{AsyncRead, AsyncWrite},
     sync::broadcast,
 };
 use tokio_websockets::{Message, WebsocketStream};
 use tracing::info;
-use watchdog::{Expired, Signal, Watchdog};
 
 pub async fn run<S>(
     mut chords_receiver: broadcast::Receiver<ServerToConsumer>,

@@ -6,6 +6,7 @@ use anyhow::Error;
 use klib::core::base::{HasName, Playable, PlaybackHandle};
 use morivar::{ClientToServer, ServerToConsumer};
 
+use serde::Deserialize;
 use yew::{html, Component, Context, Html};
 use yew_websocket::{
     format::Text,
@@ -23,6 +24,7 @@ use tracing_subscriber::{
 };
 use wasm_bindgen::JsValue;
 
+#[derive(Deserialize)]
 pub enum Msg {
     WsAction(WsAction),
     WsReady(Result<WsResponse, Error>),
@@ -77,9 +79,8 @@ impl Component for Model {
         match msg {
             Msg::WsAction(action) => match action {
                 WsAction::Connect => {
-                    let callback = ctx.link().callback(|Text(message)| {
-                        let content: Result<Msg, serde_json::Error> =
-                            serde_json::from_str(&message.context("")?);
+                    let callback = ctx.link().callback(|message| {
+                        let content: Result<Msg, serde_json::Error> = serde_json::from_str(message);
                         Msg::WsReady(content);
                         todo!()
                     });

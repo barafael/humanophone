@@ -16,19 +16,19 @@ use klib::core::{
     note,
 };
 use morivar::{PublisherToServer, ServerToPublisher, ToMessage};
+use simple_tokio_watchdog::{Expired, Signal};
 use tokio::{
     io::{AsyncRead, AsyncWrite},
     select,
 };
 use tokio_websockets::WebsocketStream;
 use tracing::{info, warn};
-use watchdog::{Expired, Signal};
 
 #[derive(Debug, Parser)]
 #[command(author, version)]
 struct Arguments {
     #[command(flatten)]
-    args: morivar::cli::ClientArguments<{ env!("CARGO_BIN_NAME") }>,
+    args: morivar::cli::ClientArguments,
 
     /// The input file containing chords
     #[arg(long, default_value = "song.json")]

@@ -4,6 +4,7 @@ use morivar::{PublisherToServer, ServerToConsumer, ServerToPublisher, ToMessage}
 use either::{Either as Response, Left as Forward, Right as ReturnToSender};
 
 use futures_util::SinkExt;
+use simple_tokio_watchdog::{Expired, Signal, Watchdog};
 use tokio::{
     io::{AsyncRead, AsyncWrite},
     select,
@@ -11,7 +12,6 @@ use tokio::{
 };
 use tokio_websockets::{Message, WebsocketStream};
 use tracing::{info, warn};
-use watchdog::{Expired, Signal, Watchdog};
 
 pub async fn run<S>(
     chords_sender: broadcast::Sender<ServerToConsumer>,
@@ -60,7 +60,7 @@ fn handle_message(msg: &Message) -> Response<ServerToConsumer, ServerToPublisher
     let Ok(text) = msg.as_text() else {
         return ReturnToSender(ServerToPublisher::Error(
             "Only text messages allowed".into(),
-        ))
+        ));
     };
     match serde_json::from_str(text) {
         Ok(PublisherToServer::PublishChord(chord)) => {
